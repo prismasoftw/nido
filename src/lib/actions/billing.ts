@@ -2,16 +2,18 @@
 
 import { headers } from "next/headers";
 
+import { z } from "zod";
+
 import { requireOrg, getUser, isAdminRole } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { PLAN_CATALOG } from "@/lib/plans";
 import { createPlanPreapproval, mpConfigured } from "@/lib/mercadopago";
-import type { PlanCode } from "@/lib/supabase/types";
+import type { PlanCode, SubscriptionStatus } from "@/lib/supabase/types";
 
-export type UpgradeState = {
+export type UpgradePayResult = {
+  status: "active" | "pending" | "rejected";
   error?: string;
-  redirectUrl?: string;
-} | null;
+};
 
 async function requestOrigin() {
   const h = await headers();
@@ -20,66 +22,95 @@ async function requestOrigin() {
   return host ? `${proto}://${host}` : "";
 }
 
-/** Starts a Mercado Pago subscription for the chosen paid plan and returns the
- *  checkout URL. The plan only takes effect once the webhook confirms it. */
-export async function startPlanUpgradeAction(
-  _prev: UpgradeState,
-  formData: FormData,
-): Promise<UpgradeState> {
-  const target = String(formData.get("plan") ?? "") as PlanCode;
-  if (target !== "lite" && target !== "premium") {
-    return { error: "Plan inválido." };
+const schema = z.object({
+  plan: z.enum(["lite", "premium"]),
+  token: z.string().min(1),
+});
+
+/** Maps a Mercado Pago preapproval status onto our SubscriptionStatus. */
+function mapSubStatus(mp: string | undefined): {
+  status: SubscriptionStatus;
+  active: boolean;
+} {
+  switch (mp) {
+    case "authorized":
+      return { status: "active", active: true };
+    case "paused":
+      return { status: "paused", active: false };
+    case "cancelled":
+      return { status: "cancelled", active: false };
+    default:
+      return { status: "trialing", active: false };
   }
+}
+
+/**
+ * Subscribes the org to a paid plan by charging a card token tokenized in the
+ * browser (authorized preapproval) — no redirect to Mercado Pago. On success the
+ * subscription is recorded immediately; the webhook later reconciles renewals.
+ */
+export async function payPlanUpgradeAction(
+  input: z.input<typeof schema>,
+): Promise<UpgradePayResult> {
+  const parsed = schema.safeParse(input);
+  if (!parsed.success) return { status: "rejected", error: "Datos inválidos." };
+  const target = parsed.data.plan as PlanCode;
 
   const { org, role } = await requireOrg();
   if (!isAdminRole(role)) {
-    return { error: "Solo un administrador puede cambiar el plan." };
+    return { status: "rejected", error: "Solo un administrador puede cambiar el plan." };
   }
   if (org.plan === target) {
-    return { error: "Ya tienes este plan activo." };
+    return { status: "rejected", error: "Ya tienes este plan activo." };
   }
   if (!mpConfigured()) {
-    return { error: "Los pagos en línea no están disponibles por ahora." };
+    return { status: "rejected", error: "Los pagos en línea no están disponibles por ahora." };
   }
 
   const user = await getUser();
   const payerEmail = user?.email;
   if (!payerEmail) {
-    return { error: "No pudimos obtener tu correo. Vuelve a iniciar sesión." };
+    return { status: "rejected", error: "No pudimos obtener tu correo. Vuelve a iniciar sesión." };
   }
 
   const plan = PLAN_CATALOG[target];
   const origin = await requestOrigin();
 
+  let pre;
   try {
-    const pre = await createPlanPreapproval({
+    pre = await createPlanPreapproval({
       reason: `Espazio · Plan ${plan.name}`,
       amount: plan.price_mxn,
       currency: org.currency || "MXN",
       payerEmail,
       externalReference: `${org.id}:${target}`,
       backUrl: `${origin}/settings?plan=${target}`,
+      cardTokenId: parsed.data.token,
     });
-    if (!pre.initPoint) throw new Error("No init_point");
-
-    // Record the pending subscription intent (service role bypasses RLS).
-    const supabase = createServiceClient();
-    await supabase
-      .from("subscriptions")
-      .upsert(
-        {
-          org_id: org.id,
-          plan_code: org.plan, // keep current plan until webhook confirms
-          status: "trialing",
-          mp_subscription_id: pre.id,
-          mp_payer_id: pre.payerId ? String(pre.payerId) : null,
-          cancel_at_period_end: false,
-        },
-        { onConflict: "org_id" },
-      );
-
-    return { redirectUrl: pre.initPoint };
   } catch {
-    return { error: "No se pudo conectar con Mercado Pago. Inténtalo de nuevo." };
+    return { status: "rejected", error: "No se pudo procesar el pago. Revisa los datos de tu tarjeta." };
   }
+  if (!pre.id) {
+    return { status: "rejected", error: "No se pudo procesar el pago. Inténtalo de nuevo." };
+  }
+
+  const { status, active } = mapSubStatus(pre.status ?? undefined);
+  const effectivePlan: PlanCode = active ? target : org.plan;
+
+  // Record the subscription (service role bypasses RLS).
+  const supabase = createServiceClient();
+  await supabase.from("subscriptions").upsert(
+    {
+      org_id: org.id,
+      plan_code: effectivePlan,
+      status,
+      mp_subscription_id: pre.id,
+      mp_payer_id: pre.payerId ? String(pre.payerId) : null,
+      cancel_at_period_end: false,
+    },
+    { onConflict: "org_id" },
+  );
+
+  if (active) return { status: "active" };
+  return { status: "pending" };
 }

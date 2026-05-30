@@ -1,6 +1,6 @@
 import "server-only";
 
-import { MercadoPagoConfig, Payment, PreApproval, Preference } from "mercadopago";
+import { MercadoPagoConfig, Payment, PreApproval } from "mercadopago";
 
 /** True when the platform Mercado Pago access token is configured. */
 export function mpConfigured() {
@@ -13,47 +13,40 @@ function client() {
   return new MercadoPagoConfig({ accessToken });
 }
 
-export type BookingPreferenceInput = {
-  title: string;
+export type CardPaymentInput = {
   amount: number; // whole pesos
-  currency: string; // "MXN"
+  token: string; // card token created client-side by MP.js
+  paymentMethodId: string; // e.g. "visa", "master"
+  issuerId?: string; // card issuer id (string from the brick)
+  installments: number;
+  payerEmail: string;
   externalReference: string; // our payment id
-  payerEmail?: string;
-  successUrl: string;
-  failureUrl: string;
-  pendingUrl: string;
+  description: string;
   notificationUrl: string;
 };
 
-/** Creates a Checkout Pro preference and returns the redirect URL + id. */
-export async function createBookingPreference(input: BookingPreferenceInput) {
-  const preference = new Preference(client());
-  const res = await preference.create({
+/** Charges a card on the platform account using a token tokenized in the
+ *  browser (transparent checkout). The card data never touches our server. */
+export async function createCardPayment(input: CardPaymentInput) {
+  const payment = new Payment(client());
+  const res = await payment.create({
     body: {
-      items: [
-        {
-          id: input.externalReference,
-          title: input.title,
-          quantity: 1,
-          unit_price: input.amount,
-          currency_id: input.currency,
-        },
-      ],
+      transaction_amount: input.amount,
+      token: input.token,
+      payment_method_id: input.paymentMethodId,
+      issuer_id: input.issuerId ? Number(input.issuerId) : undefined,
+      installments: input.installments,
+      description: input.description,
       external_reference: input.externalReference,
-      payer: input.payerEmail ? { email: input.payerEmail } : undefined,
-      back_urls: {
-        success: input.successUrl,
-        failure: input.failureUrl,
-        pending: input.pendingUrl,
-      },
-      auto_return: "approved",
       notification_url: input.notificationUrl,
+      payer: { email: input.payerEmail },
     },
   });
 
   return {
     id: res.id ?? null,
-    initPoint: res.init_point ?? res.sandbox_init_point ?? null,
+    status: res.status ?? null,
+    statusDetail: res.status_detail ?? null,
   };
 }
 
@@ -70,9 +63,11 @@ export type PlanPreapprovalInput = {
   payerEmail: string;
   externalReference: string; // `${orgId}:${planCode}`
   backUrl: string;
+  cardTokenId: string; // card token tokenized in the browser
 };
 
-/** Creates a monthly subscription (preapproval) and returns its checkout URL. */
+/** Creates an authorized monthly subscription (preapproval) charged directly
+ *  to a card token tokenized in the browser — no redirect to Mercado Pago. */
 export async function createPlanPreapproval(input: PlanPreapprovalInput) {
   const preapproval = new PreApproval(client());
   const res = await preapproval.create({
@@ -85,15 +80,15 @@ export async function createPlanPreapproval(input: PlanPreapprovalInput) {
         currency_id: input.currency,
       },
       payer_email: input.payerEmail,
+      card_token_id: input.cardTokenId,
       external_reference: input.externalReference,
       back_url: input.backUrl,
-      status: "pending",
+      status: "authorized",
     },
   });
 
   return {
     id: res.id ?? null,
-    initPoint: res.init_point ?? null,
     payerId: res.payer_id ?? null,
     status: res.status ?? null,
   };

@@ -1,16 +1,22 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { useActionState, useState } from "react";
+import { CheckCircle2, Clock, Loader2 } from "lucide-react";
 
 import {
   createPortalBookingAction,
+  payBookingAction,
+  type PortalPaymentIntent,
   type PortalState,
 } from "@/lib/actions/portal";
+import { formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CardBrick, type BrickCardData } from "@/components/payments/card-brick";
+
+type PayPhase = "approved" | "in_process";
 
 export function PortalBookingForm({
   slug,
@@ -27,24 +33,67 @@ export function PortalBookingForm({
     createPortalBookingAction,
     null,
   );
+  const [payPhase, setPayPhase] = useState<PayPhase | null>(null);
 
-  // Paid bookings return a Mercado Pago checkout URL — send the guest there.
-  useEffect(() => {
-    if (state?.redirectUrl) {
-      window.location.href = state.redirectUrl;
-    }
-  }, [state?.redirectUrl]);
+  // Paid bookings: the action returns a payment intent and we collect the card
+  // in-page with Mercado Pago's brick (no redirect).
+  const intent: PortalPaymentIntent | undefined = state?.payment;
 
-  if (state?.redirectUrl) {
+  if (payPhase) {
+    const isApproved = payPhase === "approved";
+    const Icon = isApproved ? CheckCircle2 : Clock;
     return (
       <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed p-8 text-center">
-        <Loader2 className="size-8 animate-spin" style={{ color: accent }} />
-        <p className="font-medium">Redirigiendo a Mercado Pago…</p>
+        <Icon
+          className="size-10"
+          style={{ color: isApproved ? accent : "#d97706" }}
+        />
+        <p className="font-medium">
+          {isApproved
+            ? "¡Pago confirmado! Tu reserva quedó lista y te enviamos los detalles por correo."
+            : "Estamos validando tu pago. En cuanto se acredite, confirmaremos tu reserva por correo."}
+        </p>
       </div>
     );
   }
 
-  if (state?.ok) {
+  if (intent) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between rounded-xl border p-4">
+          <div>
+            <p className="text-sm font-medium">{intent.description}</p>
+            <p className="text-muted-foreground text-xs">Pago seguro con tarjeta</p>
+          </div>
+          <span className="font-heading text-xl font-semibold">
+            {formatMoney(intent.amount)}
+          </span>
+        </div>
+        <CardBrick
+          amount={intent.amount}
+          payerEmail={intent.payerEmail}
+          onPay={async (data: BrickCardData) => {
+            const res = await payBookingAction({
+              paymentId: intent.paymentId,
+              token: data.token,
+              paymentMethodId: data.paymentMethodId,
+              issuerId: data.issuerId,
+              installments: data.installments,
+              payerEmail: data.payerEmail,
+            });
+            if (res.status === "approved" || res.status === "in_process") {
+              setPayPhase(res.status);
+              return { ok: true };
+            }
+            return { ok: false, error: res.error };
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Free / approval-only bookings finish straight away.
+  if (state?.ok && state.message) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed p-8 text-center">
         <CheckCircle2 className="size-10" style={{ color: accent }} />

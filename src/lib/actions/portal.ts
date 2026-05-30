@@ -8,15 +8,25 @@ import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
 import { notifyBookingCreated } from "@/lib/email";
 import { PLAN_CATALOG } from "@/lib/plans";
-import { createBookingPreference, mpConfigured } from "@/lib/mercadopago";
+import { createCardPayment, mpConfigured } from "@/lib/mercadopago";
+import { settleBookingPayment } from "@/lib/payments";
 import type { BookingStatus, PlanCode } from "@/lib/supabase/types";
+
+/** Pending payment surfaced to the client so it can render the card brick. */
+export type PortalPaymentIntent = {
+  paymentId: string;
+  amount: number;
+  currency: string;
+  description: string;
+  payerEmail: string;
+};
 
 export type PortalState = {
   error?: string;
   fieldErrors?: Record<string, string>;
   ok?: boolean;
   message?: string;
-  redirectUrl?: string;
+  payment?: PortalPaymentIntent;
 } | null;
 
 /** Best-effort absolute origin for back/notification URLs. */
@@ -192,29 +202,18 @@ export async function createPortalBookingAction(
     }
     const paymentId = (payment as { id: string }).id;
 
-    const origin = await requestOrigin();
-    const back = (s: string) => `${origin}/p/${d.slug}/gracias?status=${s}`;
-    try {
-      const pref = await createBookingPreference({
-        title: `${r.name} · ${o.name}`,
+    // Hand the payment intent to the client so it can collect the card in-page.
+    // The actual charge happens in payBookingAction once MP.js tokenizes it.
+    return {
+      ok: true,
+      payment: {
+        paymentId,
         amount: price,
         currency: o.currency,
-        externalReference: paymentId,
+        description: `${r.name} · ${o.name}`,
         payerEmail: d.guest_email,
-        successUrl: back("approved"),
-        failureUrl: back("failure"),
-        pendingUrl: back("pending"),
-        notificationUrl: `${origin}/api/mp/webhook`,
-      });
-      if (!pref.initPoint) throw new Error("No init_point");
-      await supabase
-        .from("payments")
-        .update({ provider_preference_id: pref.id })
-        .eq("id", paymentId);
-      return { ok: true, redirectUrl: pref.initPoint };
-    } catch {
-      return { error: "No se pudo conectar con Mercado Pago. Inténtalo de nuevo." };
-    }
+      },
+    };
   }
 
   if (plan.features.email_notifications) {
@@ -236,4 +235,97 @@ export async function createPortalBookingAction(
       ? "¡Listo! Tu solicitud quedó pendiente de confirmación. Te contactaremos por correo."
       : "¡Reserva confirmada! Te enviamos los detalles por correo.",
   };
+}
+
+export type PortalPayResult = {
+  status: "approved" | "in_process" | "rejected";
+  error?: string;
+};
+
+const paySchema = z.object({
+  paymentId: z.string().uuid(),
+  token: z.string().min(1),
+  paymentMethodId: z.string().min(1),
+  issuerId: z.string().optional(),
+  installments: z.coerce.number().int().positive(),
+  payerEmail: z.string().email().optional(),
+});
+
+/** Charges the card token tokenized in the browser for a pending booking
+ *  payment. Amount and payer come from the stored payment row — never trusted
+ *  from the client. On approval the booking is confirmed and the wallet credited. */
+export async function payBookingAction(
+  input: z.input<typeof paySchema>,
+): Promise<PortalPayResult> {
+  const parsed = paySchema.safeParse(input);
+  if (!parsed.success) return { status: "rejected", error: "Datos de pago inválidos." };
+  const c = parsed.data;
+
+  const supabase = createServiceClient();
+  const { data: payment } = await supabase
+    .from("payments")
+    .select("id, amount, currency, status, kind, metadata")
+    .eq("id", c.paymentId)
+    .maybeSingle();
+  if (!payment) return { status: "rejected", error: "Pago no encontrado." };
+  const p = payment as {
+    id: string;
+    amount: number;
+    currency: string;
+    status: string;
+    kind: string;
+    metadata: Record<string, unknown> | null;
+  };
+  if (p.kind !== "booking") {
+    return { status: "rejected", error: "Pago no válido." };
+  }
+  if (p.status === "approved") {
+    return { status: "approved" };
+  }
+  if (p.status !== "pending" && p.status !== "in_process") {
+    return { status: "rejected", error: "Este pago ya no se puede procesar." };
+  }
+
+  const payerEmail =
+    c.payerEmail ||
+    (typeof p.metadata?.guest_email === "string" ? p.metadata.guest_email : "");
+  if (!payerEmail) {
+    return { status: "rejected", error: "Falta el correo del pagador." };
+  }
+
+  const origin = await requestOrigin();
+  const description =
+    typeof p.metadata?.resource_name === "string"
+      ? `Reserva · ${p.metadata.resource_name}`
+      : "Reserva";
+
+  let mp;
+  try {
+    mp = await createCardPayment({
+      amount: p.amount, // authoritative amount from our DB
+      token: c.token,
+      paymentMethodId: c.paymentMethodId,
+      issuerId: c.issuerId,
+      installments: c.installments,
+      payerEmail,
+      externalReference: p.id,
+      description,
+      notificationUrl: origin ? `${origin}/api/mp/webhook` : "",
+    });
+  } catch {
+    return { status: "rejected", error: "No se pudo procesar el pago. Inténtalo de nuevo." };
+  }
+  if (!mp.id) {
+    return { status: "rejected", error: "No se pudo procesar el pago. Inténtalo de nuevo." };
+  }
+
+  const { status } = await settleBookingPayment({
+    paymentId: p.id,
+    mpPaymentId: mp.id,
+    mpStatus: mp.status ?? undefined,
+  });
+
+  if (status === "approved") return { status: "approved" };
+  if (status === "pending" || status === "in_process") return { status: "in_process" };
+  return { status: "rejected", error: "Tu pago fue rechazado. Revisa los datos de tu tarjeta." };
 }
