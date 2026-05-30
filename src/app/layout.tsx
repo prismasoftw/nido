@@ -24,7 +24,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "Nido";
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "Workia";
 
 export const metadata: Metadata = {
   title: {
