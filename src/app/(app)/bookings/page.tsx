@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { CalendarDays, Plus, User } from "lucide-react";
+import { CalendarDays, Plus, QrCode, User } from "lucide-react";
 
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookingDialog } from "@/components/bookings/booking-dialog";
+import { BookingQrDialog } from "@/components/bookings/booking-qr-dialog";
 
 export const metadata: Metadata = { title: "Reservas" };
 
@@ -204,6 +205,25 @@ export default async function BookingsPage() {
                         )}
                         <Badge variant={meta.variant}>{meta.label}</Badge>
                         <div className="flex gap-1">
+                          {["pending", "confirmed", "checked_in"].includes(
+                            b.status,
+                          ) && (
+                            <BookingQrDialog
+                              bookingId={b.id}
+                              label={`${b.resources?.name ?? "Reserva"} · ${who}`}
+                              trigger={
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="text-muted-foreground hover:text-foreground size-8"
+                                  aria-label="Mostrar QR de check-in"
+                                >
+                                  <QrCode className="size-4" />
+                                </Button>
+                              }
+                            />
+                          )}
                           {OPS[b.status].map((a) => (
                             <form key={a.op} action={updateBookingStatusAction}>
                               <input type="hidden" name="id" value={b.id} />

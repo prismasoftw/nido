@@ -36,6 +36,7 @@ const memberSchema = z.object({
   phone: z.string().trim().max(40).optional().or(z.literal("")),
   company: z.string().trim().max(160).optional().or(z.literal("")),
   status: z.enum(MEMBER_STATUSES as [MemberStatus, ...MemberStatus[]]).default("active"),
+  membership_plan_id: z.string().uuid().optional().or(z.literal("")),
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
 });
 
@@ -46,6 +47,7 @@ function parse(formData: FormData) {
     phone: formData.get("phone"),
     company: formData.get("company"),
     status: formData.get("status") || "active",
+    membership_plan_id: formData.get("membership_plan_id") || "",
     notes: formData.get("notes"),
   });
 }
@@ -82,6 +84,7 @@ export async function createMemberAction(
     phone: d.phone || null,
     company: d.company || null,
     status: d.status,
+    membership_plan_id: d.membership_plan_id || null,
     credit_minutes: 0,
     notes: d.notes || null,
   });
@@ -117,6 +120,7 @@ export async function updateMemberAction(
       phone: d.phone || null,
       company: d.company || null,
       status: d.status,
+      membership_plan_id: d.membership_plan_id || null,
       notes: d.notes || null,
     })
     .eq("id", id)

@@ -38,15 +38,22 @@ const STATUS_LABELS: Record<string, string> = {
   invited: "Invitado",
 };
 
+const NONE = "__none__";
+
 export function MemberDialog({
   member,
+  plans = [],
   trigger,
 }: {
   member?: Member;
+  plans?: { id: string; name: string }[];
   trigger: ReactNode;
 }) {
   const editing = Boolean(member);
   const [open, setOpen] = useState(false);
+  const [planId, setPlanId] = useState<string>(
+    member?.membership_plan_id ?? NONE,
+  );
   const [state, action, pending] = useActionState<FormState, FormData>(
     editing ? updateMemberAction : createMemberAction,
     null,
@@ -146,6 +153,30 @@ export function MemberDialog({
               </Select>
             </div>
           </div>
+
+          {plans.length > 0 && (
+            <div className="space-y-2">
+              <input
+                type="hidden"
+                name="membership_plan_id"
+                value={planId === NONE ? "" : planId}
+              />
+              <Label htmlFor="m-plan">Membresía</Label>
+              <Select value={planId} onValueChange={setPlanId}>
+                <SelectTrigger id="m-plan" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Sin membresía</SelectItem>
+                  {plans.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="m-notes">Notas</Label>
