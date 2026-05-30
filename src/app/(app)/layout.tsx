@@ -1,4 +1,10 @@
-import { requireUser, getUserOrgs, getActiveOrg, userDisplayName } from "@/lib/auth";
+import {
+  requireUser,
+  getUserOrgs,
+  getActiveOrg,
+  userDisplayName,
+  isPlatformAdmin,
+} from "@/lib/auth";
 import { redirect } from "next/navigation";
 
 import { AppSidebar } from "@/components/app/app-sidebar";
@@ -13,7 +19,12 @@ export default async function AppLayout({
   const user = await requireUser();
   const orgs = await getUserOrgs();
 
-  if (orgs.length === 0) redirect("/onboarding");
+  if (orgs.length === 0) {
+    // Platform super-admins don't own a coworking — send them to their panel
+    // instead of forcing them through the coworking onboarding.
+    if (await isPlatformAdmin()) redirect("/admin");
+    redirect("/onboarding");
+  }
 
   const active = (await getActiveOrg()) ?? { org: orgs[0].org, role: orgs[0].role };
 
