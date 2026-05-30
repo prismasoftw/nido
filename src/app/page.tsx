@@ -18,7 +18,7 @@ import { PricingSection } from "@/components/marketing/pricing-section";
 import { Reveal } from "@/components/marketing/reveal";
 import { StatCounter } from "@/components/marketing/stat-counter";
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "Workia";
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "Espazio";
 
 const features = [
   {

@@ -3,7 +3,7 @@ import "server-only";
 import { formatInTimeZone } from "date-fns-tz";
 import { es } from "date-fns/locale";
 
-const FROM = process.env.EMAIL_FROM ?? "Workia <onboarding@resend.dev>";
+const FROM = process.env.EMAIL_FROM ?? "Espazio <onboarding@resend.dev>";
 
 type SendArgs = { to: string; subject: string; html: string };
 
@@ -25,7 +25,7 @@ function layout(orgName: string, body: string) {
   return `<div style="font-family:ui-sans-serif,system-ui,sans-serif;max-width:480px;margin:0 auto;color:#0f172a">
     <h2 style="font-size:18px;margin:0 0 16px">${orgName}</h2>
     ${body}
-    <p style="color:#64748b;font-size:12px;margin-top:24px">Enviado con Workia</p>
+    <p style="color:#64748b;font-size:12px;margin-top:24px">Enviado con Espazio</p>
   </div>`;
 }
 

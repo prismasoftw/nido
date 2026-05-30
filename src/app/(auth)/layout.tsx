@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CalendarCheck, CreditCard, QrCode } from "lucide-react";
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "Workia";
+const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "Espazio";
 
 export default function AuthLayout({
   children,

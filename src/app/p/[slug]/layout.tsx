@@ -8,7 +8,7 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
         <p className="text-muted-foreground text-xs">
           Reservas con tecnología de{" "}
           <span className="text-gradient font-heading font-semibold">
-            Workia
+            Espazio
           </span>
         </p>
       </footer>

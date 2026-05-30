@@ -20,7 +20,7 @@ export default async function PlatformLayout({
               <ShieldCheck className="size-4" />
             </div>
             <span className="font-heading text-sm font-semibold">
-              Workia · Plataforma
+              Espazio · Plataforma
             </span>
           </div>
           <Link

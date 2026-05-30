@@ -47,7 +47,7 @@ export function OnboardingForm() {
           id="name"
           name="name"
           autoComplete="organization"
-          placeholder="Nido Coworking Roma Norte"
+          placeholder="Espazio Coworking Roma Norte"
           required
           autoFocus
         />

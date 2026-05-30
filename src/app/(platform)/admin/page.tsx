@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-export const metadata: Metadata = { title: "Plataforma — Workia" };
+export const metadata: Metadata = { title: "Plataforma — Espazio" };
 
 const PLAN_BADGE: Record<
   "free" | "lite" | "premium",
@@ -65,7 +65,7 @@ export default async function PlatformDashboard() {
           Panel de plataforma
         </h1>
         <p className="text-muted-foreground text-sm">
-          Vista global de todos los coworkings que usan Workia.
+          Vista global de todos los coworkings que usan Espazio.
         </p>
       </div>
 
