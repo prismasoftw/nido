@@ -1,19 +1,134 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowUpRight, Check } from "lucide-react";
 
 import { requireOrg } from "@/lib/auth";
-import { ComingSoon } from "@/components/app/coming-soon";
+import { createClient } from "@/lib/supabase/server";
+import {
+  FEATURE_LABELS,
+  LIMIT_LABELS,
+  PLAN_CATALOG,
+  formatLimit,
+} from "@/lib/plans";
+import { formatMoney } from "@/lib/format";
+import type { PlanFeatures, PlanLimits } from "@/lib/supabase/types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { OrgSettingsForm } from "@/components/settings/org-settings-form";
 
 export const metadata: Metadata = { title: "Configuración" };
 
+const USAGE_TO_LIMIT: { usage: string; limit: keyof PlanLimits }[] = [
+  { usage: "locations", limit: "locations" },
+  { usage: "resources", limit: "resources" },
+  { usage: "members", limit: "members" },
+  { usage: "staff", limit: "staff" },
+  { usage: "bookings_this_month", limit: "bookings_per_month" },
+];
+
 export default async function SettingsPage() {
-  const { role } = await requireOrg();
+  const { org, role } = await requireOrg();
   if (role !== "owner" && role !== "admin") redirect("/dashboard");
 
+  const supabase = await createClient();
+  const { data: usageData } = await supabase.rpc("org_usage", { p_org: org.id });
+  const usage = (usageData as Record<string, number> | null) ?? {};
+
+  const plan = PLAN_CATALOG[org.plan];
+  const features = Object.entries(plan.features)
+    .filter(([, on]) => on)
+    .map(([k]) => FEATURE_LABELS[k as keyof PlanFeatures]);
+
   return (
-    <ComingSoon
-      title="Configuración"
-      description="Datos del espacio, equipo, plan y facturación."
-    />
+    <div className="space-y-6 p-6">
+      <div className="space-y-1">
+        <h1 className="font-heading text-2xl font-semibold">Configuración</h1>
+        <p className="text-muted-foreground text-sm">
+          Datos de tu coworking, plan y uso de la plataforma.
+        </p>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Organización</CardTitle>
+            <CardDescription>
+              Información general de tu coworking.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <OrgSettingsForm org={org} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Plan {plan.name}</CardTitle>
+              <Badge variant="secondary">
+                {plan.price_mxn === 0
+                  ? "Gratis"
+                  : `${formatMoney(plan.price_mxn)}/mes`}
+              </Badge>
+            </div>
+            <CardDescription>{plan.description}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="space-y-3">
+              {USAGE_TO_LIMIT.map(({ usage: uk, limit: lk }) => {
+                const used = Number(usage[uk] ?? 0);
+                const max = plan.limits[lk];
+                const pct =
+                  max === -1 ? 0 : Math.min(100, (used / Math.max(max, 1)) * 100);
+                return (
+                  <div key={uk} className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">
+                        {LIMIT_LABELS[lk]}
+                      </span>
+                      <span className="font-medium">
+                        {used} / {formatLimit(max)}
+                      </span>
+                    </div>
+                    <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+                      <div
+                        className="bg-primary h-full rounded-full transition-all"
+                        style={{ width: `${max === -1 ? 6 : pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <ul className="space-y-1.5">
+              {features.map((f) => (
+                <li key={f} className="flex items-center gap-2 text-sm">
+                  <Check className="text-primary size-4 shrink-0" />
+                  {f}
+                </li>
+              ))}
+            </ul>
+
+            {org.plan !== "premium" && (
+              <Button asChild className="w-full">
+                <Link href="/#pricing">
+                  Mejorar plan
+                  <ArrowUpRight className="size-4" />
+                </Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
