@@ -72,6 +72,19 @@ export function isAdminRole(role: MemberRole) {
   return role === "owner" || role === "admin";
 }
 
+/** True when the signed-in user is on the platform-admin allow-list. */
+export async function isPlatformAdmin(): Promise<boolean> {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("is_platform_admin");
+  return data === true;
+}
+
+export async function requirePlatformAdmin() {
+  const user = await requireUser();
+  if (!(await isPlatformAdmin())) redirect("/dashboard");
+  return user;
+}
+
 /** Display name for the signed-in user, from metadata with email fallback. */
 export function userDisplayName(user: {
   email?: string;

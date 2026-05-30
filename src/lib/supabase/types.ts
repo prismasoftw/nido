@@ -273,6 +273,12 @@ export type Notification = {
   created_at: string;
 }
 
+export type PlatformAdmin = {
+  user_id: string;
+  email: string;
+  created_at: string;
+}
+
 type Row<T> = T;
 
 // Columns whose type admits null (including Json) are nullable/defaulted in the
@@ -350,6 +356,7 @@ export type Database = {
       invoices: TableDef<Invoice, Insert<Invoice, AutoCols>>;
       check_ins: TableDef<CheckIn, Insert<CheckIn, "id" | "created_at">>;
       notifications: TableDef<Notification, Insert<Notification, "id" | "created_at">>;
+      platform_admins: TableDef<PlatformAdmin, Insert<PlatformAdmin, "created_at">>;
     };
     Functions: {
       is_resource_available: {
@@ -366,6 +373,7 @@ export type Database = {
         Returns: { starts_at: string; ends_at: string }[];
       };
       org_usage: { Args: { p_org: string }; Returns: Json };
+      is_platform_admin: { Args: Record<string, never>; Returns: boolean };
     };
   };
 }
