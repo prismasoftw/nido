@@ -121,6 +121,7 @@ export type Plan = Timestamps & {
   is_public: boolean;
   limits: PlanLimits;
   features: PlanFeatures;
+  commission_bps: number;
 }
 
 export type Subscription = Timestamps & {
@@ -279,6 +280,37 @@ export type PlatformAdmin = {
   created_at: string;
 }
 
+export type PayoutStatus = "requested" | "paid" | "rejected";
+
+export type Payout = Timestamps & {
+  id: string;
+  org_id: string;
+  amount: number;
+  status: PayoutStatus;
+  destination: string | null;
+  note: string | null;
+  requested_by: string | null;
+  processed_at: string | null;
+}
+
+export type WalletLedgerEntryType =
+  | "sale_net"
+  | "commission"
+  | "payout"
+  | "payout_reversal"
+  | "adjustment";
+
+export type WalletLedger = {
+  id: string;
+  org_id: string;
+  entry_type: WalletLedgerEntryType;
+  amount: number;
+  payment_id: string | null;
+  payout_id: string | null;
+  note: string | null;
+  created_at: string;
+}
+
 type Row<T> = T;
 
 // Columns whose type admits null (including Json) are nullable/defaulted in the
@@ -357,6 +389,8 @@ export type Database = {
       check_ins: TableDef<CheckIn, Insert<CheckIn, "id" | "created_at">>;
       notifications: TableDef<Notification, Insert<Notification, "id" | "created_at">>;
       platform_admins: TableDef<PlatformAdmin, Insert<PlatformAdmin, "created_at">>;
+      payouts: TableDef<Payout, Insert<Payout, AutoCols | "processed_at">>;
+      wallet_ledger: TableDef<WalletLedger, Insert<WalletLedger, "id" | "created_at">>;
     };
     Functions: {
       is_resource_available: {
@@ -374,6 +408,7 @@ export type Database = {
       };
       org_usage: { Args: { p_org: string }; Returns: Json };
       is_platform_admin: { Args: Record<string, never>; Returns: boolean };
+      org_wallet_balance: { Args: { p_org: string }; Returns: number };
     };
   };
 }

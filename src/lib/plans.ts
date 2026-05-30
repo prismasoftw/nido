@@ -6,13 +6,23 @@ export const PLAN_ORDER: PlanCode[] = ["free", "lite", "premium"];
  *  Used for the public pricing page so it renders without a DB round-trip. */
 export const PLAN_CATALOG: Record<
   PlanCode,
-  Pick<Plan, "code" | "name" | "description" | "price_mxn" | "limits" | "features">
+  Pick<
+    Plan,
+    | "code"
+    | "name"
+    | "description"
+    | "price_mxn"
+    | "limits"
+    | "features"
+    | "commission_bps"
+  >
 > = {
   free: {
     code: "free",
     name: "Free",
     description: "Para empezar y probar la plataforma.",
     price_mxn: 0,
+    commission_bps: 0,
     limits: { locations: 1, resources: 3, members: 25, staff: 2, bookings_per_month: 50 },
     features: {
       online_payments: false,
@@ -32,6 +42,7 @@ export const PLAN_CATALOG: Record<
     name: "Lite",
     description: "Para coworkings en crecimiento que cobran en línea.",
     price_mxn: 499,
+    commission_bps: 500,
     limits: { locations: 2, resources: 25, members: 250, staff: 8, bookings_per_month: -1 },
     features: {
       online_payments: true,
@@ -51,6 +62,7 @@ export const PLAN_CATALOG: Record<
     name: "Premium",
     description: "Operación completa, multi-sede y analítica avanzada.",
     price_mxn: 1299,
+    commission_bps: 250,
     limits: { locations: -1, resources: -1, members: -1, staff: -1, bookings_per_month: -1 },
     features: {
       online_payments: true,
@@ -94,6 +106,14 @@ export function formatLimit(value: number) {
 
 export function hasFeature(plan: Pick<Plan, "features">, feature: keyof PlanFeatures) {
   return Boolean(plan.features[feature]);
+}
+
+/** Commission Espazio charges on an online booking payment, in whole pesos. */
+export function commissionFor(
+  plan: Pick<Plan, "commission_bps">,
+  amount: number,
+) {
+  return Math.round((amount * plan.commission_bps) / 10000);
 }
 
 /** Returns true if `current` usage is still within the plan limit. */

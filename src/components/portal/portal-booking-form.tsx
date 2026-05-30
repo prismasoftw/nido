@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
 import {
@@ -27,6 +27,22 @@ export function PortalBookingForm({
     createPortalBookingAction,
     null,
   );
+
+  // Paid bookings return a Mercado Pago checkout URL — send the guest there.
+  useEffect(() => {
+    if (state?.redirectUrl) {
+      window.location.href = state.redirectUrl;
+    }
+  }, [state?.redirectUrl]);
+
+  if (state?.redirectUrl) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed p-8 text-center">
+        <Loader2 className="size-8 animate-spin" style={{ color: accent }} />
+        <p className="font-medium">Redirigiendo a Mercado Pago…</p>
+      </div>
+    );
+  }
 
   if (state?.ok) {
     return (

@@ -1,11 +1,14 @@
 "use server";
 
+import { headers } from "next/headers";
+
 import { fromZonedTime } from "date-fns-tz";
 import { z } from "zod";
 
 import { createServiceClient } from "@/lib/supabase/server";
 import { notifyBookingCreated } from "@/lib/email";
 import { PLAN_CATALOG } from "@/lib/plans";
+import { createBookingPreference, mpConfigured } from "@/lib/mercadopago";
 import type { BookingStatus, PlanCode } from "@/lib/supabase/types";
 
 export type PortalState = {
@@ -13,7 +16,16 @@ export type PortalState = {
   fieldErrors?: Record<string, string>;
   ok?: boolean;
   message?: string;
+  redirectUrl?: string;
 } | null;
+
+/** Best-effort absolute origin for back/notification URLs. */
+async function requestOrigin() {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  return host ? `${proto}://${host}` : "";
+}
 
 function flatten(err: z.ZodError): Record<string, string> {
   const out: Record<string, string> = {};
@@ -118,30 +130,94 @@ export async function createPortalBookingAction(
 
   const hours = (endsAt.getTime() - startsAt.getTime()) / 3_600_000;
   const price = r.price_hour ? Math.round(r.price_hour * hours) : 0;
-  const status: BookingStatus = r.requires_approval ? "pending" : "confirmed";
 
-  const { error } = await supabase.from("bookings").insert({
-    org_id: o.id,
-    location_id: r.location_id,
-    resource_id: d.resource_id,
-    guest_name: d.guest_name,
-    guest_email: d.guest_email,
-    guest_phone: d.guest_phone || null,
-    starts_at: startIso,
-    ends_at: endIso,
-    status,
-    price,
-    currency: o.currency,
-    source: "portal",
-  });
-  if (error) {
-    if (error.code === "23P01") {
+  const plan = PLAN_CATALOG[o.plan];
+  // Online payment kicks in only when the plan allows it, MP is configured and
+  // there's an actual amount to charge. Otherwise the booking is free / manual.
+  const needsPayment = mpConfigured() && plan.features.online_payments && price > 0;
+  // Paid bookings stay pending until the webhook confirms the payment.
+  const status: BookingStatus =
+    needsPayment || r.requires_approval ? "pending" : "confirmed";
+
+  const { data: booking, error } = await supabase
+    .from("bookings")
+    .insert({
+      org_id: o.id,
+      location_id: r.location_id,
+      resource_id: d.resource_id,
+      guest_name: d.guest_name,
+      guest_email: d.guest_email,
+      guest_phone: d.guest_phone || null,
+      starts_at: startIso,
+      ends_at: endIso,
+      status,
+      price,
+      currency: o.currency,
+      source: "portal",
+    })
+    .select("id")
+    .single();
+  if (error || !booking) {
+    if (error?.code === "23P01") {
       return { error: "Ese horario ya está ocupado. Prueba con otro." };
     }
     return { error: "No se pudo crear la reserva. Inténtalo de nuevo." };
   }
+  const bookingId = (booking as { id: string }).id;
 
-  if (PLAN_CATALOG[o.plan].features.email_notifications) {
+  if (needsPayment) {
+    const { data: payment, error: payErr } = await supabase
+      .from("payments")
+      .insert({
+        org_id: o.id,
+        booking_id: bookingId,
+        kind: "booking",
+        amount: price,
+        currency: o.currency,
+        status: "pending",
+        provider: "mercadopago",
+        metadata: {
+          slug: d.slug,
+          plan: o.plan,
+          commission_bps: plan.commission_bps,
+          guest_email: d.guest_email,
+          resource_name: r.name,
+          timezone: tz,
+        },
+      })
+      .select("id")
+      .single();
+    if (payErr || !payment) {
+      return { error: "No se pudo iniciar el pago. Inténtalo de nuevo." };
+    }
+    const paymentId = (payment as { id: string }).id;
+
+    const origin = await requestOrigin();
+    const back = (s: string) => `${origin}/p/${d.slug}/gracias?status=${s}`;
+    try {
+      const pref = await createBookingPreference({
+        title: `${r.name} · ${o.name}`,
+        amount: price,
+        currency: o.currency,
+        externalReference: paymentId,
+        payerEmail: d.guest_email,
+        successUrl: back("approved"),
+        failureUrl: back("failure"),
+        pendingUrl: back("pending"),
+        notificationUrl: `${origin}/api/mp/webhook`,
+      });
+      if (!pref.initPoint) throw new Error("No init_point");
+      await supabase
+        .from("payments")
+        .update({ provider_preference_id: pref.id })
+        .eq("id", paymentId);
+      return { ok: true, redirectUrl: pref.initPoint };
+    } catch {
+      return { error: "No se pudo conectar con Mercado Pago. Inténtalo de nuevo." };
+    }
+  }
+
+  if (plan.features.email_notifications) {
     await notifyBookingCreated({
       to: d.guest_email,
       guestName: d.guest_name,
