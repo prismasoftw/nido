@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isAdminRole } from "@/lib/auth";
 import { RESOURCE_KIND_LABELS } from "@/lib/constants";
 import { formatMoney } from "@/lib/format";
+import { PLAN_CATALOG } from "@/lib/plans";
 import { deleteResourceAction } from "@/lib/actions/spaces";
 import type { Location, Resource } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { LocationDialog } from "@/components/spaces/location-dialog";
 import { ResourceDialog } from "@/components/spaces/resource-dialog";
+import { PlanLimitAlert, atLimit } from "@/components/plan/plan-limit-alert";
 
 export const metadata: Metadata = { title: "Espacios" };
 
@@ -47,6 +49,10 @@ export default async function SpacesPage() {
   const resources = (resourcesData ?? []) as Resource[];
   const locationOptions = locations.map((l) => ({ id: l.id, name: l.name }));
 
+  const limits = PLAN_CATALOG[org.plan].limits;
+  const atLocationLimit = atLimit(locations.length, limits.locations);
+  const atResourceLimit = atLimit(resources.length, limits.resources);
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -58,28 +64,56 @@ export default async function SpacesPage() {
         </div>
         {admin && (
           <div className="flex gap-2">
-            <LocationDialog
-              trigger={
-                <Button variant="outline" size="sm">
-                  <Building2 className="size-4" />
-                  Nueva sede
-                </Button>
-              }
-            />
-            {locations.length > 0 && (
-              <ResourceDialog
-                locations={locationOptions}
+            {atLocationLimit ? (
+              <Button variant="outline" size="sm" disabled>
+                <Building2 className="size-4" />
+                Nueva sede
+              </Button>
+            ) : (
+              <LocationDialog
                 trigger={
-                  <Button size="sm">
-                    <Plus className="size-4" />
-                    Nuevo espacio
+                  <Button variant="outline" size="sm">
+                    <Building2 className="size-4" />
+                    Nueva sede
                   </Button>
                 }
               />
             )}
+            {locations.length > 0 &&
+              (atResourceLimit ? (
+                <Button size="sm" disabled>
+                  <Plus className="size-4" />
+                  Nuevo espacio
+                </Button>
+              ) : (
+                <ResourceDialog
+                  locations={locationOptions}
+                  trigger={
+                    <Button size="sm">
+                      <Plus className="size-4" />
+                      Nuevo espacio
+                    </Button>
+                  }
+                />
+              ))}
           </div>
         )}
       </div>
+
+      {admin && (
+        <>
+          <PlanLimitAlert
+            used={locations.length}
+            max={limits.locations}
+            noun="sedes"
+          />
+          <PlanLimitAlert
+            used={resources.length}
+            max={limits.resources}
+            noun="espacios"
+          />
+        </>
+      )}
 
       {locations.length === 0 ? (
         <Card className="border-dashed">
@@ -139,16 +173,23 @@ export default async function SpacesPage() {
                           </Button>
                         }
                       />
-                      <ResourceDialog
-                        locations={locationOptions}
-                        defaultLocationId={location.id}
-                        trigger={
-                          <Button variant="outline" size="sm">
-                            <Plus className="size-4" />
-                            Espacio
-                          </Button>
-                        }
-                      />
+                      {atResourceLimit ? (
+                        <Button variant="outline" size="sm" disabled>
+                          <Plus className="size-4" />
+                          Espacio
+                        </Button>
+                      ) : (
+                        <ResourceDialog
+                          locations={locationOptions}
+                          defaultLocationId={location.id}
+                          trigger={
+                            <Button variant="outline" size="sm">
+                              <Plus className="size-4" />
+                              Espacio
+                            </Button>
+                          }
+                        />
+                      )}
                     </div>
                   )}
                 </div>

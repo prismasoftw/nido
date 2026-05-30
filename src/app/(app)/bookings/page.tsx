@@ -5,6 +5,7 @@ import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BOOKING_STATUS_META } from "@/lib/constants";
 import { formatDate, formatMoney, formatTime } from "@/lib/format";
+import { PLAN_CATALOG } from "@/lib/plans";
 import { updateBookingStatusAction } from "@/lib/actions/bookings";
 import type { BookingStatus } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookingDialog } from "@/components/bookings/booking-dialog";
 import { BookingQrDialog } from "@/components/bookings/booking-qr-dialog";
+import { PlanLimitAlert, atLimit } from "@/components/plan/plan-limit-alert";
 
 export const metadata: Metadata = { title: "Reservas" };
 
@@ -54,30 +56,35 @@ export default async function BookingsPage() {
   const since = new Date();
   since.setHours(0, 0, 0, 0);
 
-  const [{ data: bookingsData }, { data: resourcesData }, { data: membersData }] =
-    await Promise.all([
-      supabase
-        .from("bookings")
-        .select(
-          "id, starts_at, ends_at, status, price, title, guest_name, resources(name), locations(name), members(full_name)",
-        )
-        .eq("org_id", org.id)
-        .gte("ends_at", since.toISOString())
-        .order("starts_at", { ascending: true })
-        .limit(200),
-      supabase
-        .from("resources")
-        .select("id, name, location_id, locations(name)")
-        .eq("org_id", org.id)
-        .eq("is_active", true)
-        .order("name"),
-      supabase
-        .from("members")
-        .select("id, full_name")
-        .eq("org_id", org.id)
-        .eq("status", "active")
-        .order("full_name"),
-    ]);
+  const [
+    { data: bookingsData },
+    { data: resourcesData },
+    { data: membersData },
+    { data: usageData },
+  ] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select(
+        "id, starts_at, ends_at, status, price, title, guest_name, resources(name), locations(name), members(full_name)",
+      )
+      .eq("org_id", org.id)
+      .gte("ends_at", since.toISOString())
+      .order("starts_at", { ascending: true })
+      .limit(200),
+    supabase
+      .from("resources")
+      .select("id, name, location_id, locations(name)")
+      .eq("org_id", org.id)
+      .eq("is_active", true)
+      .order("name"),
+    supabase
+      .from("members")
+      .select("id, full_name")
+      .eq("org_id", org.id)
+      .eq("status", "active")
+      .order("full_name"),
+    supabase.rpc("org_usage", { p_org: org.id }),
+  ]);
 
   const bookings = (bookingsData ?? []) as unknown as BookingRow[];
   const resources = (
@@ -97,6 +104,13 @@ export default async function BookingsPage() {
 
   const today = new Date().toISOString().slice(0, 10);
 
+  const bookingsLimit = PLAN_CATALOG[org.plan].limits.bookings_per_month;
+  const bookingsThisMonth = Number(
+    (usageData as Record<string, unknown> | null)?.bookings_this_month ?? 0,
+  );
+  const atBookingLimit = atLimit(bookingsThisMonth, bookingsLimit);
+  const qrEnabled = PLAN_CATALOG[org.plan].features.qr_checkin;
+
   // Group upcoming/active bookings by day.
   const groups = new Map<string, BookingRow[]>();
   for (const b of bookings) {
@@ -112,7 +126,7 @@ export default async function BookingsPage() {
       members={members}
       defaultDate={today}
       trigger={
-        <Button size="sm" disabled={resources.length === 0}>
+        <Button size="sm" disabled={resources.length === 0 || atBookingLimit}>
           <Plus className="size-4" />
           Nueva reserva
         </Button>
@@ -131,6 +145,12 @@ export default async function BookingsPage() {
         </div>
         {resources.length > 0 && newBookingBtn}
       </div>
+
+      <PlanLimitAlert
+        used={bookingsThisMonth}
+        max={bookingsLimit}
+        noun="reservas al mes"
+      />
 
       {resources.length === 0 ? (
         <Card className="border-dashed">
@@ -205,9 +225,10 @@ export default async function BookingsPage() {
                         )}
                         <Badge variant={meta.variant}>{meta.label}</Badge>
                         <div className="flex gap-1">
-                          {["pending", "confirmed", "checked_in"].includes(
-                            b.status,
-                          ) && (
+                          {qrEnabled &&
+                            ["pending", "confirmed", "checked_in"].includes(
+                              b.status,
+                            ) && (
                             <BookingQrDialog
                               bookingId={b.id}
                               label={`${b.resources?.name ?? "Reserva"} · ${who}`}

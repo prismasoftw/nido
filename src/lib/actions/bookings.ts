@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { notifyBookingCreated } from "@/lib/email";
 import { PLAN_CATALOG } from "@/lib/plans";
 import type { BookingStatus } from "@/lib/supabase/types";
 
@@ -75,7 +76,7 @@ export async function createBookingAction(
   // Resource + its location (for timezone and org check).
   const { data: resource } = await supabase
     .from("resources")
-    .select("id, org_id, location_id, requires_approval, price_hour, locations(timezone)")
+    .select("id, name, org_id, location_id, requires_approval, price_hour, locations(timezone)")
     .eq("id", d.resource_id)
     .eq("org_id", org.id)
     .maybeSingle();
@@ -156,6 +157,21 @@ export async function createBookingAction(
       return { error: "Ese horario ya está ocupado en este espacio." };
     }
     return { error: "No se pudo crear la reserva." };
+  }
+
+  // Best-effort guest notification (gated by plan feature).
+  const guestEmail = d.member_id ? null : d.guest_email || null;
+  if (guestEmail && PLAN_CATALOG[org.plan].features.email_notifications) {
+    await notifyBookingCreated({
+      to: guestEmail,
+      guestName: d.guest_name || "Invitado",
+      orgName: org.name,
+      resourceName: (resource as unknown as { name: string }).name,
+      startsAt: startIso,
+      endsAt: endIso,
+      timezone: tz,
+      status: status as "pending" | "confirmed",
+    });
   }
 
   revalidatePath("/bookings");

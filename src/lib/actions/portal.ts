@@ -4,6 +4,7 @@ import { fromZonedTime } from "date-fns-tz";
 import { z } from "zod";
 
 import { createServiceClient } from "@/lib/supabase/server";
+import { notifyBookingCreated } from "@/lib/email";
 import { PLAN_CATALOG } from "@/lib/plans";
 import type { BookingStatus, PlanCode } from "@/lib/supabase/types";
 
@@ -55,21 +56,28 @@ export async function createPortalBookingAction(
 
   const { data: org } = await supabase
     .from("organizations")
-    .select("id, plan, currency, timezone")
+    .select("id, name, plan, currency, timezone")
     .eq("slug", d.slug)
     .maybeSingle();
   if (!org) return { error: "Coworking no encontrado." };
-  const o = org as { id: string; plan: PlanCode; currency: string; timezone: string };
+  const o = org as {
+    id: string;
+    name: string;
+    plan: PlanCode;
+    currency: string;
+    timezone: string;
+  };
 
   const { data: resource } = await supabase
     .from("resources")
-    .select("id, location_id, requires_approval, price_hour, locations(timezone)")
+    .select("id, name, location_id, requires_approval, price_hour, locations(timezone)")
     .eq("id", d.resource_id)
     .eq("org_id", o.id)
     .eq("is_active", true)
     .maybeSingle();
   if (!resource) return { error: "Espacio no disponible." };
   const r = resource as unknown as {
+    name: string;
     location_id: string;
     requires_approval: boolean;
     price_hour: number | null;
@@ -131,6 +139,19 @@ export async function createPortalBookingAction(
       return { error: "Ese horario ya está ocupado. Prueba con otro." };
     }
     return { error: "No se pudo crear la reserva. Inténtalo de nuevo." };
+  }
+
+  if (PLAN_CATALOG[o.plan].features.email_notifications) {
+    await notifyBookingCreated({
+      to: d.guest_email,
+      guestName: d.guest_name,
+      orgName: o.name,
+      resourceName: r.name,
+      startsAt: startIso,
+      endsAt: endIso,
+      timezone: tz,
+      status: status as "pending" | "confirmed",
+    });
   }
 
   return {

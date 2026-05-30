@@ -3,6 +3,7 @@ import { CreditCard, Mail, Pencil, Plus, UserPlus, Users, X } from "lucide-react
 
 import { isAdminRole, requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { PLAN_CATALOG } from "@/lib/plans";
 import { PRICE_UNIT_LABELS, ROLE_LABELS } from "@/lib/constants";
 import { formatDate, formatMoney } from "@/lib/format";
 import { revokeInvitationAction } from "@/lib/actions/team";
@@ -33,6 +34,7 @@ import { MemberDialog } from "@/components/members/member-dialog";
 import { InviteDialog } from "@/components/members/invite-dialog";
 import { StaffRowActions } from "@/components/members/staff-row-actions";
 import { MembershipPlanDialog } from "@/components/memberships/membership-plan-dialog";
+import { PlanLimitAlert, atLimit } from "@/components/plan/plan-limit-alert";
 
 export const metadata: Metadata = { title: "Miembros" };
 
@@ -114,6 +116,10 @@ export default async function MembersPage() {
   };
   staff.sort((a, b) => roleRank[a.role] - roleRank[b.role]);
 
+  const limits = PLAN_CATALOG[org.plan].limits;
+  const atMemberLimit = atLimit(members.length, limits.members);
+  const atStaffLimit = atLimit(staff.length, limits.staff);
+
   return (
     <div className="space-y-6 p-6">
       <div className="space-y-1">
@@ -140,16 +146,28 @@ export default async function MembersPage() {
         </TabsList>
 
         <TabsContent value="clients" className="space-y-4">
+          <PlanLimitAlert
+            used={members.length}
+            max={limits.members}
+            noun="clientes"
+          />
           <div className="flex justify-end">
-            <MemberDialog
-              plans={planOptions}
-              trigger={
-                <Button size="sm">
-                  <Plus className="size-4" />
-                  Nuevo miembro
-                </Button>
-              }
-            />
+            {atMemberLimit ? (
+              <Button size="sm" disabled>
+                <Plus className="size-4" />
+                Nuevo miembro
+              </Button>
+            ) : (
+              <MemberDialog
+                plans={planOptions}
+                trigger={
+                  <Button size="sm">
+                    <Plus className="size-4" />
+                    Nuevo miembro
+                  </Button>
+                }
+              />
+            )}
           </div>
           {members.length === 0 ? (
             <Card className="border-dashed">
@@ -225,16 +243,30 @@ export default async function MembersPage() {
 
         <TabsContent value="team" className="space-y-4">
           {admin && (
-            <div className="flex justify-end">
-              <InviteDialog
-                trigger={
-                  <Button size="sm">
+            <>
+              <PlanLimitAlert
+                used={staff.length}
+                max={limits.staff}
+                noun="usuarios del equipo"
+              />
+              <div className="flex justify-end">
+                {atStaffLimit ? (
+                  <Button size="sm" disabled>
                     <Mail className="size-4" />
                     Invitar
                   </Button>
-                }
-              />
-            </div>
+                ) : (
+                  <InviteDialog
+                    trigger={
+                      <Button size="sm">
+                        <Mail className="size-4" />
+                        Invitar
+                      </Button>
+                    }
+                  />
+                )}
+              </div>
+            </>
           )}
 
           <Card>
