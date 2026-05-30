@@ -1,6 +1,6 @@
 import "server-only";
 
-import { MercadoPagoConfig, Payment, Preference } from "mercadopago";
+import { MercadoPagoConfig, Payment, PreApproval, Preference } from "mercadopago";
 
 /** True when the platform Mercado Pago access token is configured. */
 export function mpConfigured() {
@@ -61,4 +61,46 @@ export async function createBookingPreference(input: BookingPreferenceInput) {
 export async function getMpPayment(id: string) {
   const payment = new Payment(client());
   return payment.get({ id });
+}
+
+export type PlanPreapprovalInput = {
+  reason: string; // shown to the payer, e.g. "Espazio · Plan Lite"
+  amount: number; // monthly price in whole pesos
+  currency: string; // "MXN"
+  payerEmail: string;
+  externalReference: string; // `${orgId}:${planCode}`
+  backUrl: string;
+};
+
+/** Creates a monthly subscription (preapproval) and returns its checkout URL. */
+export async function createPlanPreapproval(input: PlanPreapprovalInput) {
+  const preapproval = new PreApproval(client());
+  const res = await preapproval.create({
+    body: {
+      reason: input.reason,
+      auto_recurring: {
+        frequency: 1,
+        frequency_type: "months",
+        transaction_amount: input.amount,
+        currency_id: input.currency,
+      },
+      payer_email: input.payerEmail,
+      external_reference: input.externalReference,
+      back_url: input.backUrl,
+      status: "pending",
+    },
+  });
+
+  return {
+    id: res.id ?? null,
+    initPoint: res.init_point ?? null,
+    payerId: res.payer_id ?? null,
+    status: res.status ?? null,
+  };
+}
+
+/** Fetches a subscription (preapproval) from Mercado Pago by its id. */
+export async function getMpPreapproval(id: string) {
+  const preapproval = new PreApproval(client());
+  return preapproval.get({ id });
 }

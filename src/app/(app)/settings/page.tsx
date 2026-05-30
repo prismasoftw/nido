@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowUpRight, Check } from "lucide-react";
+import { Check, Clock } from "lucide-react";
 
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -14,7 +13,7 @@ import {
 import { formatMoney } from "@/lib/format";
 import type { PlanFeatures, PlanLimits } from "@/lib/supabase/types";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Card,
   CardContent,
@@ -23,6 +22,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { OrgSettingsForm } from "@/components/settings/org-settings-form";
+import { PlanUpgrade } from "@/components/settings/plan-upgrade";
 
 export const metadata: Metadata = { title: "Configuración" };
 
@@ -34,9 +34,20 @@ const USAGE_TO_LIMIT: { usage: string; limit: keyof PlanLimits }[] = [
   { usage: "bookings_this_month", limit: "bookings_per_month" },
 ];
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ plan?: string }>;
+}) {
   const { org, role } = await requireOrg();
   if (role !== "owner" && role !== "admin") redirect("/dashboard");
+
+  const { plan: returnedPlan } = await searchParams;
+  // Set when the admin comes back from authorizing a subscription. The plan
+  // only flips once Mercado Pago confirms via webhook, so show a pending note.
+  const justSubscribed =
+    (returnedPlan === "lite" || returnedPlan === "premium") &&
+    org.plan !== returnedPlan;
 
   const supabase = await createClient();
   const { data: usageData } = await supabase.rpc("org_usage", { p_org: org.id });
@@ -118,14 +129,17 @@ export default async function SettingsPage() {
               ))}
             </ul>
 
-            {org.plan !== "premium" && (
-              <Button asChild className="w-full">
-                <Link href="/#pricing">
-                  Mejorar plan
-                  <ArrowUpRight className="size-4" />
-                </Link>
-              </Button>
+            {justSubscribed && (
+              <Alert>
+                <Clock className="size-4" />
+                <AlertDescription>
+                  Estamos confirmando tu suscripción con Mercado Pago. Tu plan se
+                  activará en cuanto se acredite el pago.
+                </AlertDescription>
+              </Alert>
             )}
+
+            {org.plan !== "premium" && <PlanUpgrade currentPlan={org.plan} />}
           </CardContent>
         </Card>
       </div>
