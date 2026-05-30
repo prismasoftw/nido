@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
-import { CreditCard, Plus, TrendingUp } from "lucide-react";
+import { Banknote, CreditCard, Plus, TrendingUp, Wallet } from "lucide-react";
 
 import { isAdminRole, requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatMoney } from "@/lib/format";
-import type { Member, PaymentStatus, PaymentProvider } from "@/lib/supabase/types";
+import type {
+  Member,
+  PaymentStatus,
+  PaymentProvider,
+  PayoutStatus,
+  WalletLedgerEntryType,
+} from "@/lib/supabase/types";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -17,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PaymentDialog } from "@/components/payments/payment-dialog";
+import { PayoutDialog } from "@/components/payments/payout-dialog";
 
 export const metadata: Metadata = { title: "Pagos" };
 
@@ -57,6 +64,39 @@ type PaymentRow = {
   members: { full_name: string } | null;
 };
 
+type LedgerRow = {
+  id: string;
+  entry_type: WalletLedgerEntryType;
+  amount: number;
+  note: string | null;
+  created_at: string;
+};
+
+type PayoutRow = {
+  id: string;
+  amount: number;
+  status: PayoutStatus;
+  destination: string | null;
+  created_at: string;
+};
+
+const LEDGER_LABELS: Record<WalletLedgerEntryType, string> = {
+  sale_net: "Venta (neto)",
+  commission: "Comisión",
+  payout: "Retiro",
+  payout_reversal: "Retiro revertido",
+  adjustment: "Ajuste",
+};
+
+const PAYOUT_META: Record<
+  PayoutStatus,
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+> = {
+  requested: { label: "En revisión", variant: "outline" },
+  paid: { label: "Pagado", variant: "default" },
+  rejected: { label: "Rechazado", variant: "destructive" },
+};
+
 export default async function PaymentsPage() {
   const { org, role } = await requireOrg();
   const admin = isAdminRole(role);
@@ -66,7 +106,13 @@ export default async function PaymentsPage() {
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
 
-  const [{ data: paymentsData }, { data: membersData }] = await Promise.all([
+  const [
+    { data: paymentsData },
+    { data: membersData },
+    { data: balanceData },
+    { data: ledgerData },
+    { data: payoutsData },
+  ] = await Promise.all([
     supabase
       .from("payments")
       .select(
@@ -80,12 +126,28 @@ export default async function PaymentsPage() {
       .select("id, full_name")
       .eq("org_id", org.id)
       .order("full_name"),
+    supabase.rpc("org_wallet_balance", { p_org: org.id }),
+    supabase
+      .from("wallet_ledger")
+      .select("id, entry_type, amount, note, created_at")
+      .eq("org_id", org.id)
+      .order("created_at", { ascending: false })
+      .limit(10),
+    supabase
+      .from("payouts")
+      .select("id, amount, status, destination, created_at")
+      .eq("org_id", org.id)
+      .order("created_at", { ascending: false })
+      .limit(10),
   ]);
 
   const payments = (paymentsData ?? []) as unknown as PaymentRow[];
   const members = ((membersData ?? []) as Pick<Member, "id" | "full_name">[]).map(
     (m) => ({ id: m.id, name: m.full_name }),
   );
+  const balance = Number(balanceData ?? 0);
+  const ledger = (ledgerData ?? []) as LedgerRow[];
+  const payouts = (payoutsData ?? []) as PayoutRow[];
 
   const monthRevenue = payments
     .filter(
@@ -151,6 +213,94 @@ export default async function PaymentsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Mercado Pago wallet: balance accrued from online bookings + payouts. */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="bg-emerald-500/10 text-emerald-600 flex size-11 items-center justify-center rounded-xl">
+                <Wallet className="size-5" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Saldo para retiro</CardTitle>
+                <p className="font-heading text-2xl font-semibold">
+                  {formatMoney(balance)}
+                </p>
+              </div>
+            </div>
+            {admin && (
+              <PayoutDialog
+                balance={balance}
+                trigger={
+                  <Button size="sm" variant="outline" disabled={balance <= 0}>
+                    <Banknote className="size-4" />
+                    Solicitar retiro
+                  </Button>
+                }
+              />
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <p className="text-muted-foreground text-sm">
+            Las reservas pagadas en línea se acreditan aquí, ya descontada la
+            comisión de Espazio. Solicita un retiro a tu cuenta cuando quieras.
+          </p>
+
+          {payouts.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Retiros</p>
+              <div className="space-y-1.5">
+                {payouts.map((po) => {
+                  const meta = PAYOUT_META[po.status];
+                  return (
+                    <div
+                      key={po.id}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span className="text-muted-foreground">
+                        {formatDate(po.created_at)}
+                      </span>
+                      <Badge variant={meta.variant}>{meta.label}</Badge>
+                      <span className="ml-auto font-medium">
+                        {formatMoney(po.amount)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {ledger.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Movimientos recientes</p>
+              <div className="space-y-1.5">
+                {ledger.map((e) => (
+                  <div
+                    key={e.id}
+                    className="flex items-center justify-between gap-3 text-sm"
+                  >
+                    <span className="text-muted-foreground">
+                      {formatDate(e.created_at)}
+                    </span>
+                    <span>{e.note ?? LEDGER_LABELS[e.entry_type]}</span>
+                    <span
+                      className={`ml-auto font-medium ${
+                        e.amount < 0 ? "text-muted-foreground" : "text-emerald-600"
+                      }`}
+                    >
+                      {e.amount < 0 ? "" : "+"}
+                      {formatMoney(e.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {payments.length === 0 ? (
         <Card className="border-dashed">

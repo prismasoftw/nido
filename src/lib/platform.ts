@@ -59,6 +59,68 @@ export async function getPlatformOrgs(): Promise<PlatformOrg[]> {
   return usages;
 }
 
+export type PlatformPayout = {
+  id: string;
+  org_id: string;
+  org_name: string;
+  amount: number;
+  status: "requested" | "paid" | "rejected";
+  destination: string | null;
+  note: string | null;
+  created_at: string;
+  processed_at: string | null;
+};
+
+/** All payout requests across orgs, newest first, with the org name resolved. */
+export async function getPlatformPayouts(): Promise<PlatformPayout[]> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("payouts")
+    .select(
+      "id, org_id, amount, status, destination, note, created_at, processed_at, organizations(name)",
+    )
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  const rows = (data ?? []) as unknown as (Omit<
+    PlatformPayout,
+    "org_name"
+  > & { organizations: { name: string } | null })[];
+
+  return rows.map((r) => ({
+    id: r.id,
+    org_id: r.org_id,
+    org_name: r.organizations?.name ?? "—",
+    amount: r.amount,
+    status: r.status,
+    destination: r.destination,
+    note: r.note,
+    created_at: r.created_at,
+    processed_at: r.processed_at,
+  }));
+}
+
+/** Total commission Espazio has earned from approved online booking payments. */
+export async function getPlatformCommission(): Promise<number> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("payments")
+    .select("amount, metadata")
+    .eq("kind", "booking")
+    .eq("status", "approved")
+    .limit(5000);
+
+  const rows = (data ?? []) as {
+    amount: number;
+    metadata: Record<string, unknown> | null;
+  }[];
+
+  return rows.reduce((sum, p) => {
+    const bps = Number(p.metadata?.commission_bps ?? 0);
+    return sum + Math.round((p.amount * bps) / 10000);
+  }, 0);
+}
+
 export function getPlatformStats(orgs: PlatformOrg[]): PlatformStats {
   const byPlan: Record<PlanCode, number> = { free: 0, lite: 0, premium: 0 };
   let mrr = 0;

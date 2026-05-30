@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Building2, CalendarCheck, DollarSign, Sparkles } from "lucide-react";
+import {
+  Banknote,
+  Building2,
+  CalendarCheck,
+  DollarSign,
+  Sparkles,
+} from "lucide-react";
 
 import { getPlatformOrgs, getPlatformStats } from "@/lib/platform";
 import { PLAN_CATALOG } from "@/lib/plans";
 import { formatDate, formatMoney } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -60,13 +67,21 @@ export default async function PlatformDashboard() {
 
   return (
     <div className="space-y-8">
-      <div className="space-y-1">
-        <h1 className="font-heading text-2xl font-semibold">
-          Panel de plataforma
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          Vista global de todos los coworkings que usan Espazio.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="font-heading text-2xl font-semibold">
+            Panel de plataforma
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Vista global de todos los coworkings que usan Espazio.
+          </p>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/admin/payouts">
+            <Banknote className="size-4" />
+            Retiros y comisiones
+          </Link>
+        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
