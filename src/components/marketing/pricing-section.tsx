@@ -7,19 +7,20 @@ import { formatMoney } from "@/lib/format";
 import {
   FEATURE_LABELS,
   LIMIT_LABELS,
-  PLAN_CATALOG,
   PLAN_ORDER,
   formatLimit,
 } from "@/lib/plans";
+import { getPlanCatalog } from "@/lib/plans-server";
 import type { PlanFeatures, PlanLimits } from "@/lib/supabase/types";
 
 const HIGHLIGHT = "lite";
 
-export function PricingSection() {
+export async function PricingSection() {
+  const catalog = await getPlanCatalog();
   return (
     <div className="grid items-start gap-6 lg:grid-cols-3">
       {PLAN_ORDER.map((code) => {
-        const plan = PLAN_CATALOG[code];
+        const plan = catalog[code];
         const highlighted = code === HIGHLIGHT;
         return (
           <div

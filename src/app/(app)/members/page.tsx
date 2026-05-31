@@ -3,7 +3,7 @@ import { CreditCard, Mail, Pencil, Plus, UserPlus, Users, X } from "lucide-react
 
 import { isAdminRole, requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { PLAN_CATALOG } from "@/lib/plans";
+import { getPlanCatalog } from "@/lib/plans-server";
 import { PRICE_UNIT_LABELS, ROLE_LABELS } from "@/lib/constants";
 import { formatDate, formatMoney } from "@/lib/format";
 import { revokeInvitationAction } from "@/lib/actions/team";
@@ -116,7 +116,7 @@ export default async function MembersPage() {
   };
   staff.sort((a, b) => roleRank[a.role] - roleRank[b.role]);
 
-  const limits = PLAN_CATALOG[org.plan].limits;
+  const limits = (await getPlanCatalog())[org.plan].limits;
   const atMemberLimit = atLimit(members.length, limits.members);
   const atStaffLimit = atLimit(staff.length, limits.staff);
 

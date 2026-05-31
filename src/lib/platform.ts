@@ -1,8 +1,8 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/server";
-import { PLAN_CATALOG } from "@/lib/plans";
-import type { PlanCode } from "@/lib/supabase/types";
+import { PLAN_CATALOG, PLAN_ORDER } from "@/lib/plans";
+import type { Plan, PlanCode } from "@/lib/supabase/types";
 
 export type PlatformOrg = {
   id: string;
@@ -251,6 +251,165 @@ export async function getPlatformOrgDetail(
     })),
     recentPayments: (paymentsRes.data ?? []) as OrgPaymentRow[],
   };
+}
+
+/** All plan rows (free→premium order), merged over the static fallback so the
+ *  editor always shows a complete, well-typed row even on a fresh DB. */
+export async function getPlatformPlans(): Promise<Plan[]> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("plans")
+    .select(
+      "code, name, description, price_mxn, sort_order, is_public, limits, features, commission_bps, created_at, updated_at",
+    );
+
+  const byCode = new Map(
+    ((data ?? []) as unknown as Plan[]).map((p) => [p.code, p]),
+  );
+
+  return PLAN_ORDER.map((code, i) => {
+    const base = PLAN_CATALOG[code];
+    const row = byCode.get(code);
+    return {
+      code,
+      name: row?.name ?? base.name,
+      description: row?.description ?? base.description,
+      price_mxn: row?.price_mxn ?? base.price_mxn,
+      sort_order: row?.sort_order ?? i,
+      is_public: row?.is_public ?? true,
+      limits: { ...base.limits, ...(row?.limits ?? {}) },
+      features: { ...base.features, ...(row?.features ?? {}) },
+      commission_bps: row?.commission_bps ?? base.commission_bps,
+      created_at: row?.created_at ?? new Date().toISOString(),
+      updated_at: row?.updated_at ?? new Date().toISOString(),
+    } satisfies Plan;
+  });
+}
+
+export type PlatformPayment = {
+  id: string;
+  org_id: string;
+  org_name: string;
+  kind: string;
+  amount: number;
+  currency: string;
+  status: string;
+  created_at: string;
+  paid_at: string | null;
+};
+
+/** Every payment across all coworkings, newest first. */
+export async function getPlatformPayments(
+  limit = 300,
+): Promise<PlatformPayment[]> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("payments")
+    .select(
+      "id, org_id, kind, amount, currency, status, created_at, paid_at, organizations(name)",
+    )
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  const rows = (data ?? []) as unknown as (Omit<
+    PlatformPayment,
+    "org_name"
+  > & { organizations: { name: string } | null })[];
+
+  return rows.map((r) => ({
+    id: r.id,
+    org_id: r.org_id,
+    org_name: r.organizations?.name ?? "—",
+    kind: r.kind,
+    amount: r.amount,
+    currency: r.currency,
+    status: r.status,
+    created_at: r.created_at,
+    paid_at: r.paid_at,
+  }));
+}
+
+export type PlatformStaff = {
+  user_id: string;
+  org_id: string;
+  org_name: string;
+  full_name: string;
+  role: string;
+  status: string;
+  created_at: string;
+};
+
+export type PlatformMember = {
+  id: string;
+  org_id: string;
+  org_name: string;
+  full_name: string;
+  email: string | null;
+  company: string | null;
+  status: string;
+  created_at: string;
+};
+
+/** Team users (staff) across every coworking, with role and coworking name. */
+export async function getPlatformStaff(): Promise<PlatformStaff[]> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("organization_members")
+    .select(
+      "user_id, org_id, role, status, created_at, organizations(name), profiles(full_name)",
+    )
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  const rows = (data ?? []) as unknown as {
+    user_id: string;
+    org_id: string;
+    role: string;
+    status: string;
+    created_at: string;
+    organizations: { name: string } | null;
+    profiles: { full_name: string | null } | null;
+  }[];
+
+  return rows.map((r) => ({
+    user_id: r.user_id,
+    org_id: r.org_id,
+    org_name: r.organizations?.name ?? "—",
+    full_name: r.profiles?.full_name ?? "Sin nombre",
+    role: r.role,
+    status: r.status,
+    created_at: r.created_at,
+  }));
+}
+
+/** Client members across every coworking. */
+export async function getPlatformMembers(
+  limit = 500,
+): Promise<PlatformMember[]> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("members")
+    .select(
+      "id, org_id, full_name, email, company, status, created_at, organizations(name)",
+    )
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  const rows = (data ?? []) as unknown as (Omit<
+    PlatformMember,
+    "org_name"
+  > & { organizations: { name: string } | null })[];
+
+  return rows.map((r) => ({
+    id: r.id,
+    org_id: r.org_id,
+    org_name: r.organizations?.name ?? "—",
+    full_name: r.full_name,
+    email: r.email,
+    company: r.company,
+    status: r.status,
+    created_at: r.created_at,
+  }));
 }
 
 export type PlatformPayout = {

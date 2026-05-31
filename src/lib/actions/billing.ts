@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { requireOrg, getUser, isAdminRole } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
-import { PLAN_CATALOG } from "@/lib/plans";
+import { getPlanCatalog } from "@/lib/plans-server";
 import { createPlanPreapproval, mpConfigured } from "@/lib/mercadopago";
 import type { PlanCode, SubscriptionStatus } from "@/lib/supabase/types";
 
@@ -73,7 +73,7 @@ export async function payPlanUpgradeAction(
     return { status: "rejected", error: "No pudimos obtener tu correo. Vuelve a iniciar sesión." };
   }
 
-  const plan = PLAN_CATALOG[target];
+  const plan = (await getPlanCatalog())[target];
   const origin = await requestOrigin();
 
   let pre;

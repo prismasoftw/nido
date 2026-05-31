@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { PLAN_CATALOG } from "@/lib/plans";
+import { getPlanCatalog } from "@/lib/plans-server";
 import type { MemberRole } from "@/lib/supabase/types";
 
 export type FormState = {
@@ -47,7 +47,8 @@ export async function inviteMemberAction(
 
   const supabase = await createClient();
 
-  const limit = PLAN_CATALOG[org.plan].limits.staff;
+  const catalog = await getPlanCatalog();
+  const limit = catalog[org.plan].limits.staff;
   if (limit !== -1) {
     const [{ count: staffCount }, { count: pendingCount }] = await Promise.all([
       supabase

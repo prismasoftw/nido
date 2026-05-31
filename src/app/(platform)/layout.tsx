@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 import { requirePlatformAdmin } from "@/lib/auth";
+import { PlatformNav } from "@/components/platform/platform-nav";
 
 export default async function PlatformLayout({
   children,
@@ -30,6 +31,9 @@ export default async function PlatformLayout({
             <ArrowLeft className="size-4" />
             Volver a mi sede
           </Link>
+        </div>
+        <div className="mx-auto max-w-6xl px-4 pb-2">
+          <PlatformNav />
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>

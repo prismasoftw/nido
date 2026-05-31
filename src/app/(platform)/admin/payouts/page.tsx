@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft, Banknote, Clock, Wallet } from "lucide-react";
+import { Banknote, Clock, Wallet } from "lucide-react";
 
 import {
   getPlatformCommission,
@@ -67,13 +66,6 @@ export default async function PlatformPayouts() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <Link
-          href="/admin"
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
-        >
-          <ArrowLeft className="size-4" />
-          Volver al panel
-        </Link>
         <h1 className="font-heading text-2xl font-semibold">Retiros</h1>
         <p className="text-muted-foreground text-sm">
           Solicitudes de retiro de los coworkings y comisiones de la plataforma.

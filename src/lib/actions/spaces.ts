@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { PLAN_CATALOG } from "@/lib/plans";
+import { getPlanCatalog } from "@/lib/plans-server";
 import type { ResourceKind } from "@/lib/supabase/types";
 
 export type FormState = {
@@ -64,7 +64,7 @@ export async function createLocationAction(
     .select("id", { count: "exact", head: true })
     .eq("org_id", org.id);
 
-  const limit = PLAN_CATALOG[org.plan].limits.locations;
+  const limit = (await getPlanCatalog())[org.plan].limits.locations;
   if (limit !== -1 && (count ?? 0) >= limit) {
     return {
       error: `Tu plan permite ${limit} sede(s). Mejora tu plan para agregar más.`,
@@ -207,7 +207,7 @@ export async function createResourceAction(
     .select("id", { count: "exact", head: true })
     .eq("org_id", org.id);
 
-  const limit = PLAN_CATALOG[org.plan].limits.resources;
+  const limit = (await getPlanCatalog())[org.plan].limits.resources;
   if (limit !== -1 && (count ?? 0) >= limit) {
     return {
       error: `Tu plan permite ${limit} espacio(s). Mejora tu plan para agregar más.`,

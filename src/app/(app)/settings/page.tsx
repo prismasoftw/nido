@@ -4,12 +4,8 @@ import { Check, Clock } from "lucide-react";
 
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import {
-  FEATURE_LABELS,
-  LIMIT_LABELS,
-  PLAN_CATALOG,
-  formatLimit,
-} from "@/lib/plans";
+import { FEATURE_LABELS, LIMIT_LABELS, formatLimit } from "@/lib/plans";
+import { getPlanCatalog } from "@/lib/plans-server";
 import { formatMoney } from "@/lib/format";
 import type { PlanFeatures, PlanLimits } from "@/lib/supabase/types";
 import { Badge } from "@/components/ui/badge";
@@ -53,7 +49,8 @@ export default async function SettingsPage({
   const { data: usageData } = await supabase.rpc("org_usage", { p_org: org.id });
   const usage = (usageData as Record<string, number> | null) ?? {};
 
-  const plan = PLAN_CATALOG[org.plan];
+  const catalog = await getPlanCatalog();
+  const plan = catalog[org.plan];
   const features = Object.entries(plan.features)
     .filter(([, on]) => on)
     .map(([k]) => FEATURE_LABELS[k as keyof PlanFeatures]);
@@ -139,7 +136,18 @@ export default async function SettingsPage({
               </Alert>
             )}
 
-            {org.plan !== "premium" && <PlanUpgrade currentPlan={org.plan} />}
+            {org.plan !== "premium" && (
+              <PlanUpgrade
+                currentPlan={org.plan}
+                plans={{
+                  lite: { name: catalog.lite.name, price_mxn: catalog.lite.price_mxn },
+                  premium: {
+                    name: catalog.premium.name,
+                    price_mxn: catalog.premium.price_mxn,
+                  },
+                }}
+              />
+            )}
           </CardContent>
         </Card>
       </div>

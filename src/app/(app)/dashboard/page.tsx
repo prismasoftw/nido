@@ -10,7 +10,8 @@ import {
 
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { PLAN_CATALOG, formatLimit } from "@/lib/plans";
+import { formatLimit } from "@/lib/plans";
+import { getPlanCatalog } from "@/lib/plans-server";
 import type { PlanLimits } from "@/lib/supabase/types";
 import {
   Card,
@@ -60,7 +61,7 @@ export default async function DashboardPage() {
       .gte("starts_at", monthStart),
   ]);
 
-  const plan = PLAN_CATALOG[org.plan];
+  const plan = (await getPlanCatalog())[org.plan];
 
   const stats: Stat[] = [
     {

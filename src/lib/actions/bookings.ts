@@ -7,7 +7,7 @@ import { z } from "zod";
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { notifyBookingCreated } from "@/lib/email";
-import { PLAN_CATALOG } from "@/lib/plans";
+import { getPlanCatalog } from "@/lib/plans-server";
 import type { BookingStatus } from "@/lib/supabase/types";
 
 export type FormState = {
@@ -95,7 +95,8 @@ export async function createBookingAction(
   const endIso = endsAt.toISOString();
 
   // Monthly booking limit per plan.
-  const limit = PLAN_CATALOG[org.plan].limits.bookings_per_month;
+  const catalog = await getPlanCatalog();
+  const limit = catalog[org.plan].limits.bookings_per_month;
   if (limit !== -1) {
     const { data: usage } = await supabase.rpc("org_usage", { p_org: org.id });
     const used = Number(
@@ -161,7 +162,7 @@ export async function createBookingAction(
 
   // Best-effort guest notification (gated by plan feature).
   const guestEmail = d.member_id ? null : d.guest_email || null;
-  if (guestEmail && PLAN_CATALOG[org.plan].features.email_notifications) {
+  if (guestEmail && catalog[org.plan].features.email_notifications) {
     await notifyBookingCreated({
       to: guestEmail,
       guestName: d.guest_name || "Invitado",

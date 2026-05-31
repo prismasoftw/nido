@@ -5,15 +5,22 @@ import { useRouter } from "next/navigation";
 import { ArrowUpRight, CheckCircle2, Clock, X } from "lucide-react";
 
 import { payPlanUpgradeAction } from "@/lib/actions/billing";
-import { PLAN_CATALOG } from "@/lib/plans";
 import { formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { CardBrick, type BrickCardData } from "@/components/payments/card-brick";
 import type { PlanCode } from "@/lib/supabase/types";
 
-const UPGRADE_TARGETS: PlanCode[] = ["lite", "premium"];
+const UPGRADE_TARGETS: ("lite" | "premium")[] = ["lite", "premium"];
 
-export function PlanUpgrade({ currentPlan }: { currentPlan: PlanCode }) {
+type PlanPrice = { name: string; price_mxn: number };
+
+export function PlanUpgrade({
+  currentPlan,
+  plans,
+}: {
+  currentPlan: PlanCode;
+  plans: Record<"lite" | "premium", PlanPrice>;
+}) {
   const router = useRouter();
   const [selected, setSelected] = useState<"lite" | "premium" | null>(null);
   const [phase, setPhase] = useState<"active" | "pending" | null>(null);
@@ -46,7 +53,7 @@ export function PlanUpgrade({ currentPlan }: { currentPlan: PlanCode }) {
   }
 
   if (selected) {
-    const plan = PLAN_CATALOG[selected];
+    const plan = plans[selected];
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between rounded-xl border p-4">
@@ -89,11 +96,11 @@ export function PlanUpgrade({ currentPlan }: { currentPlan: PlanCode }) {
   return (
     <div className="space-y-3">
       {targets.map((p) => {
-        const plan = PLAN_CATALOG[p];
+        const plan = plans[p];
         return (
           <Button
             key={p}
-            onClick={() => setSelected(p as "lite" | "premium")}
+            onClick={() => setSelected(p)}
             className="w-full justify-between"
             variant={p === "premium" ? "default" : "outline"}
           >

@@ -5,7 +5,7 @@ import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BOOKING_STATUS_META } from "@/lib/constants";
 import { formatDate, formatMoney, formatTime } from "@/lib/format";
-import { PLAN_CATALOG } from "@/lib/plans";
+import { getPlanCatalog } from "@/lib/plans-server";
 import { updateBookingStatusAction } from "@/lib/actions/bookings";
 import type { BookingStatus } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/button";
@@ -104,12 +104,13 @@ export default async function BookingsPage() {
 
   const today = new Date().toISOString().slice(0, 10);
 
-  const bookingsLimit = PLAN_CATALOG[org.plan].limits.bookings_per_month;
+  const planInfo = (await getPlanCatalog())[org.plan];
+  const bookingsLimit = planInfo.limits.bookings_per_month;
   const bookingsThisMonth = Number(
     (usageData as Record<string, unknown> | null)?.bookings_this_month ?? 0,
   );
   const atBookingLimit = atLimit(bookingsThisMonth, bookingsLimit);
-  const qrEnabled = PLAN_CATALOG[org.plan].features.qr_checkin;
+  const qrEnabled = planInfo.features.qr_checkin;
 
   // Group upcoming/active bookings by day.
   const groups = new Map<string, BookingRow[]>();

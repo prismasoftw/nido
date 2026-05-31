@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isAdminRole } from "@/lib/auth";
 import { RESOURCE_KIND_LABELS } from "@/lib/constants";
 import { formatMoney } from "@/lib/format";
-import { PLAN_CATALOG } from "@/lib/plans";
+import { getPlanCatalog } from "@/lib/plans-server";
 import { deleteResourceAction } from "@/lib/actions/spaces";
 import type { Location, Resource } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,7 @@ export default async function SpacesPage() {
   const resources = (resourcesData ?? []) as Resource[];
   const locationOptions = locations.map((l) => ({ id: l.id, name: l.name }));
 
-  const limits = PLAN_CATALOG[org.plan].limits;
+  const limits = (await getPlanCatalog())[org.plan].limits;
   const atLocationLimit = atLimit(locations.length, limits.locations);
   const atResourceLimit = atLimit(resources.length, limits.resources);
 

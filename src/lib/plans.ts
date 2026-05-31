@@ -2,21 +2,22 @@ import type { Plan, PlanCode, PlanFeatures, PlanLimits } from "@/lib/supabase/ty
 
 export const PLAN_ORDER: PlanCode[] = ["free", "lite", "premium"];
 
-/** Static catalog mirroring the seed in 20260529000003_plans.sql.
- *  Used for the public pricing page so it renders without a DB round-trip. */
-export const PLAN_CATALOG: Record<
-  PlanCode,
-  Pick<
-    Plan,
-    | "code"
-    | "name"
-    | "description"
-    | "price_mxn"
-    | "limits"
-    | "features"
-    | "commission_bps"
-  >
-> = {
+/** Shape of a plan as the app consumes it (catalog entry). */
+export type PlanInfo = Pick<
+  Plan,
+  | "code"
+  | "name"
+  | "description"
+  | "price_mxn"
+  | "limits"
+  | "features"
+  | "commission_bps"
+>;
+
+/** Static catalog mirroring the seed in 20260529000003_plans.sql. Used as the
+ *  fallback/default; the live values come from the `plans` table via
+ *  getPlanCatalog() so a platform admin can edit prices, limits and features. */
+export const PLAN_CATALOG: Record<PlanCode, PlanInfo> = {
   free: {
     code: "free",
     name: "Free",

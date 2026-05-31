@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import { createServiceClient } from "@/lib/supabase/server";
 import { notifyBookingCreated } from "@/lib/email";
-import { PLAN_CATALOG } from "@/lib/plans";
+import { getPlanCatalog } from "@/lib/plans-server";
 import { createCardPayment, mpConfigured } from "@/lib/mercadopago";
 import { settleBookingPayment } from "@/lib/payments";
 import type { BookingStatus, PlanCode } from "@/lib/supabase/types";
@@ -118,7 +118,8 @@ export async function createPortalBookingAction(
   const startIso = startsAt.toISOString();
   const endIso = endsAt.toISOString();
 
-  const limit = PLAN_CATALOG[o.plan].limits.bookings_per_month;
+  const catalog = await getPlanCatalog();
+  const limit = catalog[o.plan].limits.bookings_per_month;
   if (limit !== -1) {
     const { data: usage } = await supabase.rpc("org_usage", { p_org: o.id });
     const used = Number(
@@ -141,7 +142,7 @@ export async function createPortalBookingAction(
   const hours = (endsAt.getTime() - startsAt.getTime()) / 3_600_000;
   const price = r.price_hour ? Math.round(r.price_hour * hours) : 0;
 
-  const plan = PLAN_CATALOG[o.plan];
+  const plan = catalog[o.plan];
   // Online payment kicks in only when the plan allows it, MP is configured and
   // there's an actual amount to charge. Otherwise the booking is free / manual.
   const needsPayment = mpConfigured() && plan.features.online_payments && price > 0;
