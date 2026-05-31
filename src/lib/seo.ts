@@ -37,3 +37,23 @@ export function absoluteUrl(path = "/"): string {
 }
 
 export const TWITTER_HANDLE = "@espazio_app";
+
+/* ── Contacto / soporte ──────────────────────────────────────────────
+   Centralizado para usarse en footer, página de contacto y correos.
+   Si el chat de WhatsApp no abre, prueba con "521" en vez de "52". */
+
+/** Número en formato legible para mostrar. */
+export const SUPPORT_WHATSAPP_DISPLAY = "951 580 8498";
+
+/** Número en formato internacional (MX = 52) para enlaces wa.me. */
+export const SUPPORT_WHATSAPP_E164 = "529515808498";
+
+/** Enlace directo de WhatsApp con mensaje prellenado. */
+export const SUPPORT_WHATSAPP_URL = `https://wa.me/${SUPPORT_WHATSAPP_E164}?text=${encodeURIComponent(
+  "Hola, quiero saber más sobre Espazio para mi coworking.",
+)}`;
+
+/** Correo de soporte (reenvía a la bandeja del equipo vía Cloudflare). */
+export const SUPPORT_EMAIL = "ayuda@espazio.com";
+
+export const SUPPORT_EMAIL_URL = `mailto:${SUPPORT_EMAIL}`;

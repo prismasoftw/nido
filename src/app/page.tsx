@@ -11,6 +11,8 @@ import {
   Sparkles,
   ShieldCheck,
   Clock,
+  MessageCircle,
+  Mail,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,10 @@ import {
   SITE_NAME,
   SITE_URL,
   absoluteUrl,
+  SUPPORT_WHATSAPP_URL,
+  SUPPORT_WHATSAPP_DISPLAY,
+  SUPPORT_EMAIL,
+  SUPPORT_EMAIL_URL,
 } from "@/lib/seo";
 
 const appName = "Espazio";
@@ -312,7 +318,23 @@ export default async function LandingPage() {
             © {new Date().getFullYear()} {appName}. Hecho para coworkings en
             México.
           </p>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <a
+              href={SUPPORT_WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground inline-flex items-center gap-1.5 transition-colors"
+            >
+              <MessageCircle className="size-4" />
+              {SUPPORT_WHATSAPP_DISPLAY}
+            </a>
+            <a
+              href={SUPPORT_EMAIL_URL}
+              className="hover:text-foreground inline-flex items-center gap-1.5 transition-colors"
+            >
+              <Mail className="size-4" />
+              {SUPPORT_EMAIL}
+            </a>
             <Link href="/login" className="hover:text-foreground transition-colors">
               Iniciar sesión
             </Link>
@@ -322,6 +344,17 @@ export default async function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Botón flotante de WhatsApp para soporte/ventas. */}
+      <a
+        href={SUPPORT_WHATSAPP_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Escríbenos por WhatsApp"
+        className="fixed bottom-5 right-5 z-50 inline-flex size-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg shadow-black/20 transition-transform duration-200 hover:scale-105 focus-visible:ring-2 focus-visible:ring-[#25D366] focus-visible:ring-offset-2"
+      >
+        <MessageCircle className="size-7" />
+      </a>
     </div>
   );
 }
