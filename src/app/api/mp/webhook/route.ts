@@ -102,7 +102,9 @@ async function handleSubscription(req: NextRequest, preapprovalId: string) {
 
   const ref = pre.external_reference ?? ""; // `${orgId}:${planCode}`
   const [orgId, planCode] = ref.split(":") as [string, PlanCode | undefined];
-  if (!orgId || (planCode !== "lite" && planCode !== "premium")) {
+  const validPlan =
+    planCode === "free" || planCode === "lite" || planCode === "premium";
+  if (!orgId || !validPlan) {
     return new Response(null, { status: 200 });
   }
 

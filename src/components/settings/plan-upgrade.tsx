@@ -10,26 +10,31 @@ import { Button } from "@/components/ui/button";
 import { CardBrick, type BrickCardData } from "@/components/payments/card-brick";
 import type { PlanCode } from "@/lib/supabase/types";
 
-const UPGRADE_TARGETS: ("lite" | "premium")[] = ["lite", "premium"];
+const PLAN_ORDER: PlanCode[] = ["free", "lite", "premium"];
 
 type PlanPrice = { name: string; price_mxn: number };
 
 export function PlanUpgrade({
   currentPlan,
+  paid,
   plans,
 }: {
   currentPlan: PlanCode;
-  plans: Record<"lite" | "premium", PlanPrice>;
+  /** True when the org already has an active paid subscription. */
+  paid: boolean;
+  plans: Record<PlanCode, PlanPrice>;
 }) {
   const router = useRouter();
-  const [selected, setSelected] = useState<"lite" | "premium" | null>(null);
+  const [selected, setSelected] = useState<PlanCode | null>(null);
   const [phase, setPhase] = useState<"active" | "pending" | null>(null);
 
-  // Only show plans strictly above the current one.
-  const order: PlanCode[] = ["free", "lite", "premium"];
-  const targets = UPGRADE_TARGETS.filter(
-    (p) => order.indexOf(p) > order.indexOf(currentPlan),
-  );
+  // When already paid: only offer strictly-higher plans (upgrade).
+  // When on trial/expired (not paid): offer the current plan to activate it,
+  // plus any higher plans.
+  const targets = PLAN_ORDER.filter((p) => {
+    const cmp = PLAN_ORDER.indexOf(p) - PLAN_ORDER.indexOf(currentPlan);
+    return paid ? cmp > 0 : cmp >= 0;
+  });
   if (targets.length === 0) return null;
 
   if (phase) {
@@ -45,7 +50,7 @@ export function PlanUpgrade({
         </p>
         {isActive && (
           <Button size="sm" onClick={() => router.refresh()}>
-            Ver mi nuevo plan
+            Ver mi plan
           </Button>
         )}
       </div>
@@ -97,15 +102,17 @@ export function PlanUpgrade({
     <div className="space-y-3">
       {targets.map((p) => {
         const plan = plans[p];
+        const isCurrent = p === currentPlan;
         return (
           <Button
             key={p}
             onClick={() => setSelected(p)}
             className="w-full justify-between"
-            variant={p === "premium" ? "default" : "outline"}
+            variant={p === "premium" || isCurrent ? "default" : "outline"}
           >
             <span>
-              Mejorar a {plan.name} · {formatMoney(plan.price_mxn)}/mes
+              {isCurrent ? "Activar" : "Mejorar a"} {plan.name} ·{" "}
+              {formatMoney(plan.price_mxn)}/mes
             </span>
             <ArrowUpRight className="size-4" />
           </Button>

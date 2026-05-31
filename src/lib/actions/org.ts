@@ -4,6 +4,9 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { TRIAL_DAYS } from "@/lib/trial";
+import { PLAN_ORDER } from "@/lib/plans";
+import type { PlanCode } from "@/lib/supabase/types";
 
 export type OrgState = { error?: string } | null;
 
@@ -61,6 +64,11 @@ export async function createOrganizationAction(
     ? timezoneInput
     : "America/Mexico_City";
 
+  const planInput = String(formData.get("plan") ?? "free");
+  const plan: PlanCode = (PLAN_ORDER as string[]).includes(planInput)
+    ? (planInput as PlanCode)
+    : "free";
+
   if (name.length < 2) {
     return { error: "Escribe el nombre de tu coworking." };
   }
@@ -74,6 +82,11 @@ export async function createOrganizationAction(
 
   const slug = await uniqueSlug(slugify(name));
 
+  // Start a free trial; the chosen plan is what we'll charge once it ends.
+  const trialEndsAt = new Date(
+    Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
   const { data: org, error } = await supabase
     .from("organizations")
     .insert({
@@ -82,7 +95,8 @@ export async function createOrganizationAction(
       timezone,
       currency: "MXN",
       country: "MX",
-      plan: "free",
+      plan,
+      trial_ends_at: trialEndsAt,
       created_by: user.id,
     })
     .select("id")
@@ -96,6 +110,19 @@ export async function createOrganizationAction(
           : "No se pudo crear el espacio. Inténtalo de nuevo.",
     };
   }
+
+  // Record the trial subscription (service role bypasses RLS). The webhook and
+  // the in-app payment flow later reconcile this into an active subscription.
+  const admin = createServiceClient();
+  await admin.from("subscriptions").upsert(
+    {
+      org_id: org.id,
+      plan_code: plan,
+      status: "trialing",
+      cancel_at_period_end: false,
+    },
+    { onConflict: "org_id" },
+  );
 
   const cookieStore = await cookies();
   cookieStore.set(ACTIVE_ORG_COOKIE, org.id, {

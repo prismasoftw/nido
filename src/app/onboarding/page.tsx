@@ -3,6 +3,9 @@ import type { Metadata } from "next";
 
 import { requireUser, getUserOrgs } from "@/lib/auth";
 import { OnboardingForm } from "@/components/onboarding/onboarding-form";
+import { getPlanCatalog } from "@/lib/plans-server";
+import { PLAN_ORDER } from "@/lib/plans";
+import { TRIAL_DAYS } from "@/lib/trial";
 
 export const metadata: Metadata = { title: "Configura tu espacio" };
 
@@ -12,6 +15,14 @@ export default async function OnboardingPage() {
   // Already part of an organization — skip onboarding.
   const orgs = await getUserOrgs();
   if (orgs.length > 0) redirect("/dashboard");
+
+  const catalog = await getPlanCatalog();
+  const plans = PLAN_ORDER.map((code) => ({
+    code,
+    name: catalog[code].name,
+    description: catalog[code].description ?? "",
+    price_mxn: catalog[code].price_mxn,
+  }));
 
   return (
     <div className="bg-background relative flex min-h-svh items-center justify-center overflow-hidden px-4 py-12">
@@ -31,12 +42,12 @@ export default async function OnboardingPage() {
             Crea tu espacio de coworking
           </h1>
           <p className="text-muted-foreground text-sm">
-            Configura lo esencial para empezar. Podrás agregar ubicaciones,
-            salas y miembros en un minuto.
+            Configura lo esencial para empezar. Tienes {TRIAL_DAYS} días de
+            prueba gratis, sin tarjeta.
           </p>
         </div>
 
-        <OnboardingForm />
+        <OnboardingForm plans={plans} trialDays={TRIAL_DAYS} />
       </div>
     </div>
   );

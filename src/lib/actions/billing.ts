@@ -7,6 +7,7 @@ import { z } from "zod";
 import { requireOrg, getUser, isAdminRole } from "@/lib/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getPlanCatalog } from "@/lib/plans-server";
+import { getBillingState } from "@/lib/trial";
 import { createPlanPreapproval, mpConfigured } from "@/lib/mercadopago";
 import type { PlanCode, SubscriptionStatus } from "@/lib/supabase/types";
 
@@ -23,7 +24,7 @@ async function requestOrigin() {
 }
 
 const schema = z.object({
-  plan: z.enum(["lite", "premium"]),
+  plan: z.enum(["free", "lite", "premium"]),
   token: z.string().min(1),
 });
 
@@ -60,7 +61,10 @@ export async function payPlanUpgradeAction(
   if (!isAdminRole(role)) {
     return { status: "rejected", error: "Solo un administrador puede cambiar el plan." };
   }
-  if (org.plan === target) {
+  // Block re-paying for a plan you already pay for. Trial/expired orgs are not
+  // "paid", so they may activate their current plan (including Básico).
+  const billing = await getBillingState(org);
+  if (billing.paid && org.plan === target) {
     return { status: "rejected", error: "Ya tienes este plan activo." };
   }
   if (!mpConfigured()) {

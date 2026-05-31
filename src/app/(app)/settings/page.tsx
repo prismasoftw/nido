@@ -4,8 +4,9 @@ import { Check, Clock } from "lucide-react";
 
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { FEATURE_LABELS, LIMIT_LABELS, formatLimit } from "@/lib/plans";
+import { FEATURE_LABELS, LIMIT_LABELS, PLAN_ORDER, formatLimit } from "@/lib/plans";
 import { getPlanCatalog } from "@/lib/plans-server";
+import { getBillingState } from "@/lib/trial";
 import { formatMoney } from "@/lib/format";
 import type { PlanFeatures, PlanLimits } from "@/lib/supabase/types";
 import { Badge } from "@/components/ui/badge";
@@ -42,8 +43,10 @@ export default async function SettingsPage({
   // Set when the admin comes back from authorizing a subscription. The plan
   // only flips once Mercado Pago confirms via webhook, so show a pending note.
   const justSubscribed =
-    (returnedPlan === "lite" || returnedPlan === "premium") &&
+    (PLAN_ORDER as string[]).includes(returnedPlan ?? "") &&
     org.plan !== returnedPlan;
+
+  const billing = await getBillingState(org);
 
   const supabase = await createClient();
   const { data: usageData } = await supabase.rpc("org_usage", { p_org: org.id });
@@ -51,6 +54,15 @@ export default async function SettingsPage({
 
   const catalog = await getPlanCatalog();
   const plan = catalog[org.plan];
+  const planPrices = Object.fromEntries(
+    PLAN_ORDER.map((code) => [
+      code,
+      { name: catalog[code].name, price_mxn: catalog[code].price_mxn },
+    ]),
+  ) as Record<(typeof PLAN_ORDER)[number], { name: string; price_mxn: number }>;
+  // Show the billing widget when there's something to do: activate (not paid)
+  // or upgrade (paid but below premium).
+  const showBilling = !billing.paid || org.plan !== "premium";
   const features = Object.entries(plan.features)
     .filter(([, on]) => on)
     .map(([k]) => FEATURE_LABELS[k as keyof PlanFeatures]);
@@ -81,10 +93,12 @@ export default async function SettingsPage({
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Plan {plan.name}</CardTitle>
-              <Badge variant="secondary">
-                {plan.price_mxn === 0
-                  ? "Gratis"
-                  : `${formatMoney(plan.price_mxn)}/mes`}
+              <Badge variant={billing.inTrial ? "default" : "secondary"}>
+                {billing.inTrial
+                  ? `Prueba · ${billing.daysLeft} ${billing.daysLeft === 1 ? "día" : "días"}`
+                  : plan.price_mxn === 0
+                    ? "Gratis"
+                    : `${formatMoney(plan.price_mxn)}/mes`}
               </Badge>
             </div>
             <CardDescription>{plan.description}</CardDescription>
@@ -136,16 +150,18 @@ export default async function SettingsPage({
               </Alert>
             )}
 
-            {org.plan !== "premium" && (
+            {billing.inTrial && (
+              <p className="text-muted-foreground text-xs">
+                Estás en tu prueba gratis. Activa tu plan para no perder acceso
+                cuando termine.
+              </p>
+            )}
+
+            {showBilling && (
               <PlanUpgrade
                 currentPlan={org.plan}
-                plans={{
-                  lite: { name: catalog.lite.name, price_mxn: catalog.lite.price_mxn },
-                  premium: {
-                    name: catalog.premium.name,
-                    price_mxn: catalog.premium.price_mxn,
-                  },
-                }}
+                paid={billing.paid}
+                plans={planPrices}
               />
             )}
           </CardContent>
