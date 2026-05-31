@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarDays, CheckCircle2, Clock, MapPin, User } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock, Lock, MapPin, User } from "lucide-react";
 
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getPlanCatalog } from "@/lib/plans-server";
 import { BOOKING_STATUS_META } from "@/lib/constants";
 import { formatDate, formatTime } from "@/lib/format";
 import { checkInBookingAction } from "@/lib/actions/checkin";
@@ -33,6 +34,9 @@ export default async function CheckInPage({ params }: Params) {
   const { bookingId } = await params;
   const { org } = await requireOrg();
   const supabase = await createClient();
+
+  const catalog = await getPlanCatalog();
+  const canQr = catalog[org.plan].features.qr_checkin;
 
   const { data } = await supabase
     .from("bookings")
@@ -85,7 +89,18 @@ export default async function CheckInPage({ params }: Params) {
             )}
           </div>
 
-          {done ? (
+          {!canQr ? (
+            <div className="space-y-3 rounded-lg border border-dashed p-4 text-center text-sm">
+              <Lock className="text-muted-foreground mx-auto size-5" />
+              <p className="font-medium">Check-in QR requiere plan Lite o Premium</p>
+              <p className="text-muted-foreground text-xs">
+                Actualiza tu plan para registrar entradas mediante código QR.
+              </p>
+              <Button asChild size="sm" className="mt-1 w-full">
+                <Link href="/settings">Mejorar plan</Link>
+              </Button>
+            </div>
+          ) : done ? (
             <div className="flex items-center gap-2 rounded-lg border border-dashed p-4 text-sm">
               <CheckCircle2 className="text-primary size-5" />
               <span className="font-medium">Check-in registrado.</span>

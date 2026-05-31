@@ -1,7 +1,9 @@
 import { type NextRequest } from "next/server";
 import QRCode from "qrcode";
 
+import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getPlanCatalog } from "@/lib/plans-server";
 
 export async function GET(
   request: NextRequest,
@@ -9,12 +11,20 @@ export async function GET(
 ) {
   const { bookingId } = await ctx.params;
 
+  // Gate: qr_checkin is a paid-tier feature.
+  const { org } = await requireOrg();
+  const catalog = await getPlanCatalog();
+  if (!catalog[org.plan].features.qr_checkin) {
+    return new Response("Tu plan no incluye check-in QR.", { status: 403 });
+  }
+
   // RLS scopes this select to bookings of orgs where the user is staff.
   const supabase = await createClient();
   const { data: booking } = await supabase
     .from("bookings")
     .select("id")
     .eq("id", bookingId)
+    .eq("org_id", org.id)
     .maybeSingle();
 
   if (!booking) {

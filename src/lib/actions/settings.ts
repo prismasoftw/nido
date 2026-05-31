@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { getPlanCatalog } from "@/lib/plans-server";
 
 export type FormState = {
   error?: string;
@@ -48,14 +49,27 @@ export async function updateOrgSettingsAction(
   });
   if (!parsed.success) return { fieldErrors: flatten(parsed.error) };
 
+  // Gate: custom_branding is a paid-tier feature.
+  const catalog = await getPlanCatalog();
+  const canBrand = catalog[org.plan].features.custom_branding;
+
+  const updateData: {
+    name: string;
+    timezone: string;
+    brand_color?: string | null;
+  } = {
+    name: parsed.data.name,
+    timezone: parsed.data.timezone,
+  };
+
+  if (canBrand) {
+    updateData.brand_color = parsed.data.brand_color || null;
+  }
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("organizations")
-    .update({
-      name: parsed.data.name,
-      timezone: parsed.data.timezone,
-      brand_color: parsed.data.brand_color || null,
-    })
+    .update(updateData)
     .eq("id", org.id);
   if (error) return { error: "No se pudo guardar la configuración." };
 

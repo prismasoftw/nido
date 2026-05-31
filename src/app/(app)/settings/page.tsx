@@ -85,7 +85,7 @@ export default async function SettingsPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <OrgSettingsForm org={org} />
+            <OrgSettingsForm org={org} canBrand={catalog[org.plan].features.custom_branding} />
           </CardContent>
         </Card>
 
