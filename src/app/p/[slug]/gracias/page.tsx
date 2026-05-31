@@ -11,6 +11,7 @@ type Search = { searchParams: Promise<{ status?: string }> };
 
 export const metadata: Metadata = {
   title: "Gracias por tu reserva",
+  robots: { index: false, follow: false },
 };
 
 const VIEWS = {

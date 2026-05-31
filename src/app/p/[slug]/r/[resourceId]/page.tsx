@@ -23,9 +23,21 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!org) return { title: "Coworking no encontrado" };
   const resource = await getPortalResource(org.id, resourceId);
   if (!resource) return { title: `${org.name} — Espacio no encontrado` };
+  const title = `${resource.name} — ${org.name}`;
+  const description = `Reserva ${resource.name} en ${org.name}. Consulta disponibilidad y precios, y reserva en línea.`;
+  const url = `/p/${slug}/r/${resourceId}`;
   return {
-    title: `${resource.name} — ${org.name}`,
-    description: `Reserva ${resource.name} en ${org.name}.`,
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: "website",
+      url,
+      title,
+      description,
+      siteName: org.name,
+    },
+    robots: { index: true, follow: true },
   };
 }
 

@@ -18,10 +18,30 @@ type Params = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
   const org = await getPortalOrg(slug);
-  if (!org) return { title: "Coworking no encontrado" };
+  if (!org) {
+    return { title: "Coworking no encontrado", robots: { index: false } };
+  }
+  const title = `${org.name} — Reserva tu espacio`;
+  const description = `Reserva oficinas, salas de juntas y escritorios en ${org.name}. Consulta disponibilidad y reserva en línea.`;
+  const url = `/p/${slug}`;
   return {
-    title: `${org.name} — Reserva tu espacio`,
-    description: `Reserva oficinas, salas y escritorios en ${org.name}.`,
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: "website",
+      url,
+      title,
+      description,
+      siteName: org.name,
+      images: org.logo_url ? [{ url: org.logo_url }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+    robots: { index: true, follow: true },
   };
 }
 

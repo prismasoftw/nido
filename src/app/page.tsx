@@ -17,6 +17,14 @@ import { Button } from "@/components/ui/button";
 import { PricingSection } from "@/components/marketing/pricing-section";
 import { Reveal } from "@/components/marketing/reveal";
 import { StatCounter } from "@/components/marketing/stat-counter";
+import { getPlanCatalog } from "@/lib/plans-server";
+import { PLAN_ORDER } from "@/lib/plans";
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL,
+  absoluteUrl,
+} from "@/lib/seo";
 
 const appName = "Espazio";
 
@@ -60,9 +68,63 @@ const stats = [
   { to: 3, suffix: " min", label: "Para poner tu sede en línea" },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const catalog = await getPlanCatalog();
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${SITE_URL}/#organization`,
+        name: SITE_NAME,
+        url: SITE_URL,
+        logo: absoluteUrl("/icon"),
+        description: SITE_DESCRIPTION,
+        areaServed: "MX",
+        contactPoint: {
+          "@type": "ContactPoint",
+          email: "hola@espazio.app",
+          contactType: "customer support",
+          availableLanguage: ["Spanish"],
+        },
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${SITE_URL}/#website`,
+        url: SITE_URL,
+        name: SITE_NAME,
+        inLanguage: "es-MX",
+        publisher: { "@id": `${SITE_URL}/#organization` },
+      },
+      {
+        "@type": "SoftwareApplication",
+        name: SITE_NAME,
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web",
+        description: SITE_DESCRIPTION,
+        url: SITE_URL,
+        offers: PLAN_ORDER.map((code) => {
+          const plan = catalog[code];
+          return {
+            "@type": "Offer",
+            name: plan.name,
+            price: plan.price_mxn,
+            priceCurrency: "MXN",
+            category: "subscription",
+            url: `${SITE_URL}/signup?plan=${code}`,
+          };
+        }),
+      },
+    ],
+  };
+
   return (
     <div className="flex flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <header className="sticky top-0 z-50 px-3 pt-3">
         <div className="glass-strong mx-auto flex h-14 max-w-6xl items-center justify-between rounded-2xl px-4 shadow-sm">
           <Link href="/" className="flex items-center gap-2 font-semibold">
