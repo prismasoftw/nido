@@ -4,7 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 
 import type { Database } from "@/lib/supabase/types";
 
-const PUBLIC_PATHS = ["/", "/login", "/signup", "/forgot-password", "/auth", "/p", "/pricing", "/api/mp"];
+const PUBLIC_PATHS = ["/", "/login", "/signup", "/forgot-password", "/auth", "/p", "/pricing", "/api/mp", "/privacidad", "/terminos"];
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some(

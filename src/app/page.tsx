@@ -341,6 +341,12 @@ export default async function LandingPage() {
             <a href="#pricing" className="hover:text-foreground transition-colors">
               Precios
             </a>
+            <Link href="/privacidad" className="hover:text-foreground transition-colors">
+              Privacidad
+            </Link>
+            <Link href="/terminos" className="hover:text-foreground transition-colors">
+              Términos
+            </Link>
           </div>
         </div>
       </footer>
