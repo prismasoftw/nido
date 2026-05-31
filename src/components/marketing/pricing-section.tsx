@@ -52,7 +52,7 @@ export async function PricingSection() {
               variant={highlighted ? "default" : "outline"}
             >
               <Link href={`/signup?plan=${code}`}>
-                {code === "free" ? "Empezar gratis" : "Elegir plan"}
+                {plan.price_mxn === 0 ? "Empezar gratis" : "Elegir plan"}
               </Link>
             </Button>
 

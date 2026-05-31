@@ -85,7 +85,7 @@ export default function LandingPage() {
             </Button>
             <Button asChild size="sm">
               <Link href="/signup" className="group">
-                Empezar gratis
+                Crear cuenta
                 <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
             </Button>
@@ -123,7 +123,7 @@ export default function LandingPage() {
               <p className="text-muted-foreground mx-auto mt-6 max-w-2xl text-lg text-pretty">
                 {appName} es la plataforma todo en uno para rentar oficinas,
                 escritorios y salas: reservas en tiempo real, pagos con Mercado
-                Pago, miembros y métricas. Desde un plan gratis.
+                Pago, miembros y métricas. Desde $199 MXN al mes.
               </p>
             </Reveal>
 
@@ -131,7 +131,7 @@ export default function LandingPage() {
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Button asChild size="lg" className="group">
                   <Link href="/signup">
-                    Crear cuenta gratis
+                    Crear cuenta
                     <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                   </Link>
                 </Button>
@@ -141,8 +141,7 @@ export default function LandingPage() {
               </div>
               <p className="text-muted-foreground mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs">
                 <span className="inline-flex items-center gap-1">
-                  <ShieldCheck className="text-brand size-3.5" /> Sin tarjeta para
-                  empezar
+                  <ShieldCheck className="text-brand size-3.5" /> Sin contratos
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <Clock className="text-brand size-3.5" /> Listo en minutos
@@ -215,7 +214,7 @@ export default function LandingPage() {
                 Precios simples y transparentes
               </h2>
               <p className="text-muted-foreground mt-3">
-                Empieza gratis y crece cuando lo necesites. Sin contratos.
+                Elige tu plan y crece cuando lo necesites. Sin contratos.
               </p>
             </Reveal>
             <Reveal delay={120} className="mt-14">
@@ -237,7 +236,7 @@ export default function LandingPage() {
             </p>
             <Button asChild size="lg" variant="secondary" className="group mt-7">
               <Link href="/signup">
-                Empezar gratis
+                Crear cuenta
                 <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
               </Link>
             </Button>

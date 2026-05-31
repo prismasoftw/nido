@@ -36,7 +36,7 @@ export default async function LoginPage({
       <p className="text-muted-foreground text-center text-sm">
         ¿No tienes cuenta?{" "}
         <Link href="/signup" className="text-primary font-medium hover:underline">
-          Regístrate gratis
+          Regístrate
         </Link>
       </p>
     </div>

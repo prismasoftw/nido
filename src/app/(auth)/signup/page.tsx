@@ -11,7 +11,7 @@ export default function SignupPage() {
       <div className="space-y-1">
         <h1 className="font-heading text-2xl font-semibold">Crea tu cuenta</h1>
         <p className="text-muted-foreground text-sm">
-          Empieza gratis. Sin tarjeta de crédito.
+          Crea tu cuenta en minutos y empieza a operar.
         </p>
       </div>
 

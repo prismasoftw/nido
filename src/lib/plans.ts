@@ -20,10 +20,10 @@ export type PlanInfo = Pick<
 export const PLAN_CATALOG: Record<PlanCode, PlanInfo> = {
   free: {
     code: "free",
-    name: "Free",
-    description: "Para empezar y probar la plataforma.",
-    price_mxn: 0,
-    commission_bps: 0,
+    name: "Básico",
+    description: "Para empezar a operar tu coworking con lo esencial.",
+    price_mxn: 199,
+    commission_bps: 600,
     limits: { locations: 1, resources: 3, members: 25, staff: 2, bookings_per_month: 50 },
     features: {
       online_payments: false,
@@ -42,8 +42,8 @@ export const PLAN_CATALOG: Record<PlanCode, PlanInfo> = {
     code: "lite",
     name: "Lite",
     description: "Para coworkings en crecimiento que cobran en línea.",
-    price_mxn: 499,
-    commission_bps: 500,
+    price_mxn: 599,
+    commission_bps: 390,
     limits: { locations: 2, resources: 25, members: 250, staff: 8, bookings_per_month: -1 },
     features: {
       online_payments: true,
@@ -62,8 +62,8 @@ export const PLAN_CATALOG: Record<PlanCode, PlanInfo> = {
     code: "premium",
     name: "Premium",
     description: "Operación completa, multi-sede y analítica avanzada.",
-    price_mxn: 1299,
-    commission_bps: 250,
+    price_mxn: 1399,
+    commission_bps: 290,
     limits: { locations: -1, resources: -1, members: -1, staff: -1, bookings_per_month: -1 },
     features: {
       online_payments: true,
