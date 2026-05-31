@@ -90,6 +90,7 @@ export type Organization = Timestamps & {
   mp_customer_id: string | null;
   settings: Json;
   created_by: string | null;
+  suspended_at: string | null;
 }
 
 export type OrganizationMember = {

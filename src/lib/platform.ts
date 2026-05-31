@@ -11,6 +11,7 @@ export type PlatformOrg = {
   plan: PlanCode;
   currency: string;
   created_at: string;
+  suspended_at: string | null;
   locations: number;
   resources: number;
   members: number;
@@ -34,12 +35,12 @@ export async function getPlatformOrgs(): Promise<PlatformOrg[]> {
   const supabase = createServiceClient();
   const { data } = await supabase
     .from("organizations")
-    .select("id, name, slug, plan, currency, created_at")
+    .select("id, name, slug, plan, currency, created_at, suspended_at")
     .order("created_at", { ascending: false });
 
   const orgs = (data ?? []) as Pick<
     PlatformOrg,
-    "id" | "name" | "slug" | "plan" | "currency" | "created_at"
+    "id" | "name" | "slug" | "plan" | "currency" | "created_at" | "suspended_at"
   >[];
 
   const usages = await Promise.all(
@@ -57,6 +58,199 @@ export async function getPlatformOrgs(): Promise<PlatformOrg[]> {
   );
 
   return usages;
+}
+
+export type GrowthPoint = { month: string; label: string; nuevos: number; total: number };
+
+/** Monthly new-org counts plus running total for the last `months` months. */
+export function getPlatformGrowth(
+  orgs: Pick<PlatformOrg, "created_at">[],
+  months = 6,
+): GrowthPoint[] {
+  const now = new Date();
+  const buckets: GrowthPoint[] = [];
+  const fmt = new Intl.DateTimeFormat("es-MX", { month: "short" });
+
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    buckets.push({
+      month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      label: fmt.format(d),
+      nuevos: 0,
+      total: 0,
+    });
+  }
+
+  // Orgs created before the window count toward the starting cumulative total.
+  const windowStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+  let priorTotal = 0;
+  for (const o of orgs) {
+    const created = new Date(o.created_at);
+    if (created < windowStart) {
+      priorTotal += 1;
+      continue;
+    }
+    const key = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, "0")}`;
+    const bucket = buckets.find((b) => b.month === key);
+    if (bucket) bucket.nuevos += 1;
+  }
+
+  let running = priorTotal;
+  for (const b of buckets) {
+    running += b.nuevos;
+    b.total = running;
+  }
+  return buckets;
+}
+
+export type OrgLocation = {
+  id: string;
+  name: string;
+  city: string | null;
+  is_active: boolean;
+};
+
+export type OrgBookingRow = {
+  id: string;
+  starts_at: string;
+  status: string;
+  price: number;
+  resource_name: string;
+  guest: string;
+};
+
+export type OrgPaymentRow = {
+  id: string;
+  created_at: string;
+  kind: string;
+  amount: number;
+  status: string;
+};
+
+export type PlatformOrgDetail = {
+  id: string;
+  name: string;
+  slug: string;
+  plan: PlanCode;
+  currency: string;
+  country: string;
+  created_at: string;
+  suspended_at: string | null;
+  brand_color: string | null;
+  logo_url: string | null;
+  usage: {
+    locations: number;
+    resources: number;
+    members: number;
+    bookings_this_month: number;
+  };
+  walletBalance: number;
+  subscription: {
+    status: string;
+    plan_code: PlanCode;
+    current_period_end: string | null;
+    cancel_at_period_end: boolean;
+  } | null;
+  locations: OrgLocation[];
+  recentBookings: OrgBookingRow[];
+  recentPayments: OrgPaymentRow[];
+};
+
+/** Full profile of a single coworking for the platform-admin detail view. */
+export async function getPlatformOrgDetail(
+  orgId: string,
+): Promise<PlatformOrgDetail | null> {
+  const supabase = createServiceClient();
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select(
+      "id, name, slug, plan, currency, country, created_at, suspended_at, brand_color, logo_url",
+    )
+    .eq("id", orgId)
+    .maybeSingle();
+
+  if (!org) return null;
+  const o = org as Pick<
+    PlatformOrgDetail,
+    | "id"
+    | "name"
+    | "slug"
+    | "plan"
+    | "currency"
+    | "country"
+    | "created_at"
+    | "suspended_at"
+    | "brand_color"
+    | "logo_url"
+  >;
+
+  const [usageRes, balanceRes, subRes, locsRes, bookingsRes, paymentsRes] =
+    await Promise.all([
+      supabase.rpc("org_usage", { p_org: orgId }),
+      supabase.rpc("org_wallet_balance", { p_org: orgId }),
+      supabase
+        .from("subscriptions")
+        .select("status, plan_code, current_period_end, cancel_at_period_end")
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("locations")
+        .select("id, name, city, is_active")
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("bookings")
+        .select(
+          "id, starts_at, status, price, guest_name, members(full_name), resources(name)",
+        )
+        .eq("org_id", orgId)
+        .order("starts_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("payments")
+        .select("id, created_at, kind, amount, status")
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(8),
+    ]);
+
+  const u = (usageRes.data as Record<string, unknown> | null) ?? {};
+  const sub = subRes.data as PlatformOrgDetail["subscription"];
+
+  const bookingRows = (bookingsRes.data ?? []) as unknown as {
+    id: string;
+    starts_at: string;
+    status: string;
+    price: number;
+    guest_name: string | null;
+    members: { full_name: string } | null;
+    resources: { name: string } | null;
+  }[];
+
+  return {
+    ...o,
+    usage: {
+      locations: Number(u.locations ?? 0),
+      resources: Number(u.resources ?? 0),
+      members: Number(u.members ?? 0),
+      bookings_this_month: Number(u.bookings_this_month ?? 0),
+    },
+    walletBalance: Number(balanceRes.data ?? 0),
+    subscription: sub ?? null,
+    locations: (locsRes.data ?? []) as OrgLocation[],
+    recentBookings: bookingRows.map((b) => ({
+      id: b.id,
+      starts_at: b.starts_at,
+      status: b.status,
+      price: b.price,
+      resource_name: b.resources?.name ?? "—",
+      guest: b.members?.full_name ?? b.guest_name ?? "Invitado",
+    })),
+    recentPayments: (paymentsRes.data ?? []) as OrgPaymentRow[],
+  };
 }
 
 export type PlatformPayout = {
